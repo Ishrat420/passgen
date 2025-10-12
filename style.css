@@ -1,0 +1,183 @@
+body {
+  background: #eee;
+  color: #111;
+  font-family: 'Courier New', monospace;
+  max-width: 550px;
+  margin: auto;
+  padding: 2rem;
+}
+
+h2 {
+  text-align: center;
+}
+
+label {
+  display: block;
+  margin-top: 1rem;
+  font-weight: bold;
+}
+
+input, select, button {
+  width: 100%;
+  padding: 0.8rem;
+  margin-top: 0.3rem;
+  font-family: inherit;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-sizing: border-box;
+}
+
+button {
+  background: #222;
+  color: #fff;
+  cursor: pointer;
+  margin-top: 1.5rem;
+}
+
+button:hover {
+  background: #444;
+}
+
+#result {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  text-align: center;
+  word-break: break-word;
+  font-size: 1.2rem;
+  position: relative;
+}
+
+#copyBtn {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  width: auto;
+  padding: 0.5rem 1rem;
+}
+
+#explainBox {
+  display: none;
+  text-align: left;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  background: #fafafa;
+  border: 1px dashed #ccc;
+  padding: 0.5rem;
+  border-radius: 5px;
+}
+
+small {
+  color: #555;
+}
+
+details {
+  margin-top: 1rem;
+}
+
+/* Toggle */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #fff;
+  border-radius: 50%;
+  transition: 0.3s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+input:checked + .slider {
+  background-color: #111;
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+.switch-label {
+  font-weight: bold;
+  color: #111;
+  user-select: none;
+  transform: translateY(1px);
+}
+
+.hint {
+  color: #777;
+  font-size: 0.8rem;
+  margin-left: 2.2rem; /* visually aligns under toggle text */
+  transition: opacity 0.3s ease;
+  opacity: 0;
+}
+
+.hint.show {
+  display: block !important;
+  opacity: 1;
+}
+
+/* Smooth disable feedback */
+.switch input:disabled + .slider {
+  background-color: #ddd;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.switch-label.disabled {
+  opacity: 0.4;
+  transition: opacity 0.3s ease;
+}
+
+/* Optional lock icon */
+.switch-lock {
+  font-size: 0.9rem;
+  color: #777;
+  margin-left: 6px;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.3s ease;
+}
+
+.switch-lock.show {
+  opacity: 1;
+}
+
+
