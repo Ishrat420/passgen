@@ -11,180 +11,147 @@ const CHARSETS = {
 
 
 /* ==========================================================================
-   INITIALIZATION — Runs when DOM is ready
+   CLASS: CryptoHelper — Static cryptography utilities
+   ========================================================================== */
+
+class CryptoHelper {
+  static async pbkdf2(pass, salt, iters = 100000, len = 32) {
+    const e = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', e.encode(pass), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: e.encode(salt), iterations: iters, hash: 'SHA-256' },
+      key,
+      len * 8
+    );
+    return this.bufferToHex(bits);
+  }
+
+  static async argon2(pass, salt, memMB = 64) {
+    const o = { pass, salt, time: 3, mem: memMB * 1024, parallelism: 1, hashLen: 32, type: argon2.ArgonType.Argon2id };
+    const { hashHex } = await argon2.hash(o);
+    return hashHex;
+  }
+
+  static async scrypt(pass, salt, N = 16384) {
+    const e = new TextEncoder();
+    const dk = await scrypt.scrypt(e.encode(pass), e.encode(salt), N, 8, 1, 32);
+    return this.bufferToHex(dk);
+  }
+
+  static async digest(input, algo = 'SHA-256') {
+    const e = new TextEncoder();
+    const d = e.encode(input);
+    const hash = await crypto.subtle.digest(algo, d);
+    return this.bufferToHex(hash);
+  }
+
+  static bufferToHex(buffer) {
+    return Array.from(new Uint8Array(buffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+}
+
+
+/* ==========================================================================
+   CLASS: PasswordGenerator
+   ========================================================================== */
+
+class PasswordGenerator {
+  constructor({ algorithm, length, policyOn, compatMode }) {
+    this.algorithm = algorithm;
+    this.length = length;
+    this.policyOn = policyOn;
+    this.compatMode = compatMode;
+  }
+
+  async generate(site, secret, counter = '0') {
+    const nsite = this.normalizeSite(site);
+    const combined = `${nsite}|${secret}|${counter}`;
+
+    let hex;
+    switch (this.algorithm) {
+      case 'PBKDF2-SHA256':
+        hex = await CryptoHelper.pbkdf2(secret, combined, this.getValue('iterations', 100000));
+        break;
+      case 'Argon2id':
+        hex = await CryptoHelper.argon2(secret, combined, this.getValue('argonMem', 64));
+        break;
+      case 'scrypt':
+        hex = await CryptoHelper.scrypt(secret, combined, this.getValue('scryptN', 16384));
+        break;
+      default:
+        hex = await CryptoHelper.digest(combined, this.algorithm);
+    }
+
+    const password = this.mapToPassword(hex);
+    return { password, nsite, hex };
+  }
+
+  mapToPassword(hex) {
+    const bytes = this.hexToBytes(hex);
+    const charset = this.compatMode
+      ? CHARSETS.lowers + CHARSETS.uppers + CHARSETS.digits + '!@#$%^&*()-_=+'
+      : CHARSETS.lowers + CHARSETS.uppers + CHARSETS.digits + CHARSETS.symbols;
+
+    let pwd = '';
+    for (let i = 0; i < this.length; i++) {
+      pwd += charset[bytes[i % bytes.length] % charset.length];
+    }
+
+    if (!this.policyOn) return pwd;
+
+    // Ensure deterministic character diversity
+    const arr = pwd.split('');
+    const categories = [CHARSETS.uppers, CHARSETS.lowers, CHARSETS.digits, CHARSETS.symbols];
+    categories.forEach((set, idx) => {
+      const pos = bytes[idx + 4] % arr.length;
+      arr[pos] = set[bytes[idx] % set.length];
+    });
+
+    return arr.join('');
+  }
+
+  // --- Helpers --------------------------------------------------------------
+  hexToBytes(hex) {
+    const a = [];
+    for (let i = 0; i < hex.length; i += 2) a.push(parseInt(hex.slice(i, i + 2), 16));
+    return a;
+  }
+
+  normalizeSite(site) {
+    try {
+      let u = site.trim();
+      if (!u.includes('://')) u = 'https://' + u;
+      return new URL(u).hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+      return site.toLowerCase().trim();
+    }
+  }
+
+  isDiverse(pwd) {
+    return (
+      /[A-Z]/.test(pwd) &&
+      /[a-z]/.test(pwd) &&
+      /\d/.test(pwd) &&
+      /[^A-Za-z0-9]/.test(pwd)
+    );
+  }
+
+  getValue(id, fallback) {
+    const el = document.getElementById(id);
+    return el ? parseInt(el.value, 10) : fallback;
+  }
+}
+
+
+/* ==========================================================================
+   UI CONTROLLER LOGIC
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
   initToggleExclusivity();
 });
-
-
-/* ==========================================================================
-   TOGGLE HANDLING — Mutual exclusivity between Policy and Compatibility
-   ========================================================================== */
-
-function initToggleExclusivity() {
-  const policyToggle = document.getElementById('policyToggle');
-  const compatToggle = document.getElementById('compatToggle');
-  const policyLabel = document.querySelector('label[for="policyToggle"]');
-  const compatLabel = document.querySelector('label[for="compatToggle"]');
-
-  // Add lock icons dynamically
-  const policyLock = createLockIcon();
-  const compatLock = createLockIcon();
-  policyLabel.appendChild(policyLock);
-  compatLabel.appendChild(compatLock);
-
-  // Update visual states
-  const updateUI = () => {
-    updateToggleVisual(policyToggle, policyLabel, policyLock);
-    updateToggleVisual(compatToggle, compatLabel, compatLock);
-  };
-
-  policyToggle.addEventListener('change', () => {
-    if (policyToggle.checked) {
-      compatToggle.checked = false;
-      compatToggle.disabled = true;
-    } else {
-      compatToggle.disabled = false;
-    }
-    updateUI();
-  });
-
-  compatToggle.addEventListener('change', () => {
-    if (compatToggle.checked) {
-      policyToggle.checked = false;
-      policyToggle.disabled = true;
-    } else {
-      policyToggle.disabled = false;
-    }
-    updateUI();
-  });
-}
-
-function createLockIcon() {
-  const lock = document.createElement('span');
-  lock.className = 'switch-lock';
-  lock.textContent = '🔒';
-  return lock;
-}
-
-function updateToggleVisual(toggle, label, lock) {
-  if (toggle.disabled) {
-    label.classList.add('disabled');
-    lock.classList.add('show');
-  } else {
-    label.classList.remove('disabled');
-    lock.classList.remove('show');
-  }
-}
-
-
-/* ==========================================================================
-   UTILITY FUNCTIONS
-   ========================================================================== */
-
-function normalizeSite(site) {
-  try {
-    let url = site.trim();
-    if (!url.includes('://')) url = 'https://' + url;
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, '');
-  } catch {
-    return site.toLowerCase().trim();
-  }
-}
-
-function hexToBytes(hex) {
-  const bytes = [];
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes.push(parseInt(hex.slice(i, i + 2), 16));
-  }
-  return bytes;
-}
-
-
-/* ==========================================================================
-   CRYPTOGRAPHY HELPERS
-   ========================================================================== */
-
-async function pbkdf2(pass, salt, iters = 100000, len = 32) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: enc.encode(salt), iterations: iters, hash: 'SHA-256' },
-    key,
-    len * 8
-  );
-  return bufferToHex(bits);
-}
-
-async function argon2Hash(pass, salt, memMB = 64) {
-  const opts = {
-    pass,
-    salt,
-    time: 3,
-    mem: memMB * 1024,
-    parallelism: 1,
-    hashLen: 32,
-    type: argon2.ArgonType.Argon2id
-  };
-  const { hashHex } = await argon2.hash(opts);
-  return hashHex;
-}
-
-async function scryptHash(pass, salt, N = 16384) {
-  const enc = new TextEncoder();
-  const dk = await scrypt.scrypt(enc.encode(pass), enc.encode(salt), N, 8, 1, 32);
-  return bufferToHex(dk);
-}
-
-async function digestHex(input, algo = 'SHA-256') {
-  const enc = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest(algo, enc.encode(input));
-  return bufferToHex(hashBuffer);
-}
-
-function bufferToHex(buffer) {
-  return Array.from(new Uint8Array(buffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-
-/* ==========================================================================
-   PASSWORD GENERATION
-   ========================================================================== */
-
-function mapToPassword(hex, len = 16, policyOn = true, compatMode = false) {
-  const bytes = hexToBytes(hex);
-
-  const charset = compatMode
-    ? CHARSETS.lowers + CHARSETS.uppers + CHARSETS.digits + '!@#$%^&*()-_=+'
-    : CHARSETS.lowers + CHARSETS.uppers + CHARSETS.digits + CHARSETS.symbols;
-
-  let password = '';
-  for (let i = 0; i < len; i++) {
-    password += charset[bytes[i % bytes.length] % charset.length];
-  }
-
-  if (!policyOn) return password;
-
-  // Ensure deterministic diversity (A-Z, a-z, 0-9, symbol)
-  const arr = password.split('');
-  const categories = [CHARSETS.uppers, CHARSETS.lowers, CHARSETS.digits, CHARSETS.symbols];
-
-  categories.forEach((set, idx) => {
-    const pos = bytes[idx + 4] % arr.length;
-    arr[pos] = set[bytes[idx] % set.length];
-  });
-
-  return arr.join('');
-}
-
-
-/* ==========================================================================
-   MAIN GENERATION WORKFLOW
-   ========================================================================== */
 
 async function generate() {
   const site = document.getElementById('website').value.trim();
@@ -205,69 +172,80 @@ async function generate() {
     return;
   }
 
-  const nsite = normalizeSite(site);
-  const combined = `${nsite}|${secret}|${counter}`;
-  let hex;
+  const gen = new PasswordGenerator({ algorithm: algo, length, policyOn, compatMode });
+  const { password, nsite } = await gen.generate(site, secret, counter);
 
-  try {
-    switch (algo) {
-      case 'PBKDF2-SHA256':
-        hex = await pbkdf2(secret, combined, parseInt(document.getElementById('iterations').value));
-        break;
-      case 'Argon2id':
-        hex = await argon2Hash(secret, combined, parseInt(document.getElementById('argonMem').value));
-        break;
-      case 'scrypt':
-        hex = await scryptHash(secret, combined, parseInt(document.getElementById('scryptN').value));
-        break;
-      default:
-        hex = await digestHex(combined, algo);
-    }
+  pwSpan.innerText = password;
+  resultDiv.style.display = 'block';
 
-    const pwd = mapToPassword(hex, length, policyOn, compatMode);
-    pwSpan.innerText = pwd;
-    resultDiv.style.display = 'block';
-
-    // Diversity warning
-    warn.style.display = 'none';
-    if (policyOn && !isPasswordDiverse(pwd)) {
-      warn.innerText = "⚠️ Password lacks full character diversity. Try increasing 'Characters to Use'.";
-      warn.style.display = 'block';
-      setTimeout(() => (warn.style.display = 'none'), 8000);
-    }
-
-    // Recipe ID & auto-hide
-    const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
-    const rid = await digestHex(recipe, 'SHA-256');
-    document.getElementById('recipeInfo').innerText = 'Recipe ID ' + rid.slice(0, 8);
-
-    clearTimeout(window.hideTimer);
-    window.hideTimer = setTimeout(() => (pwSpan.innerText = '•••••••• (hidden)'), 30000);
-
-    document.getElementById('explainBox').style.display = 'none';
-  } catch (err) {
-    pwSpan.innerText = 'Error: ' + err.message;
+  // Diversity feedback
+  warn.style.display = 'none';
+  if (policyOn && !gen.isDiverse(password)) {
+    warn.innerText = "⚠️ Password lacks full character diversity. Try increasing 'Characters to Use'.";
+    warn.style.display = 'block';
+    setTimeout(() => (warn.style.display = 'none'), 8000);
   }
+
+  // Recipe ID & auto-hide
+  const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
+  const rid = await CryptoHelper.digest(recipe, 'SHA-256');
+  document.getElementById('recipeInfo').innerText = 'Recipe ID ' + rid.slice(0, 8);
+
+  clearTimeout(window.hideTimer);
+  window.hideTimer = setTimeout(() => (pwSpan.innerText = '•••••••• (hidden)'), 30000);
+
+  document.getElementById('explainBox').style.display = 'none';
 }
 
 
 /* ==========================================================================
-   HELPERS — UI & Explanation
+   UI UTILITIES
    ========================================================================== */
 
-function isPasswordDiverse(pwd) {
-  return (
-    /[A-Z]/.test(pwd) &&
-    /[a-z]/.test(pwd) &&
-    /\d/.test(pwd) &&
-    /[^A-Za-z0-9]/.test(pwd)
-  );
+function initToggleExclusivity() {
+  const policyToggle = document.getElementById('policyToggle');
+  const compatToggle = document.getElementById('compatToggle');
+  const policyLabel = document.querySelector('label[for="policyToggle"]');
+  const compatLabel = document.querySelector('label[for="compatToggle"]');
+
+  const policyLock = createLockIcon();
+  const compatLock = createLockIcon();
+  policyLabel.appendChild(policyLock);
+  compatLabel.appendChild(compatLock);
+
+  const updateUI = () => {
+    updateToggleVisual(policyToggle, policyLabel, policyLock);
+    updateToggleVisual(compatToggle, compatLabel, compatLock);
+  };
+
+  policyToggle.addEventListener('change', () => {
+    compatToggle.disabled = policyToggle.checked;
+    if (policyToggle.checked) compatToggle.checked = false;
+    updateUI();
+  });
+
+  compatToggle.addEventListener('change', () => {
+    policyToggle.disabled = compatToggle.checked;
+    if (compatToggle.checked) policyToggle.checked = false;
+    updateUI();
+  });
+}
+
+function createLockIcon() {
+  const lock = document.createElement('span');
+  lock.className = 'switch-lock';
+  lock.textContent = '🔒';
+  return lock;
+}
+
+function updateToggleVisual(toggle, label, lock) {
+  label.classList.toggle('disabled', toggle.disabled);
+  lock.classList.toggle('show', toggle.disabled);
 }
 
 function copyToClipboard() {
   const text = document.getElementById('password').innerText;
   if (!text) return;
-
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('copyBtn');
     const original = btn.innerText;
@@ -282,12 +260,12 @@ async function explainPassword() {
   const counter = document.getElementById('counter').value.trim() || '0';
   const algo = document.getElementById('algorithm').value;
   const length = document.getElementById('length').value;
-  const nsite = normalizeSite(site);
+  const nsite = new PasswordGenerator({}).normalizeSite(site);
   const policyOn = document.getElementById('policyToggle').checked;
   const compatMode = document.getElementById('compatToggle').checked;
 
   const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
-  const rid = await digestHex(recipe, 'SHA-256');
+  const rid = await CryptoHelper.digest(recipe, 'SHA-256');
 
   const box = document.getElementById('explainBox');
   box.style.display = 'block';
@@ -303,4 +281,3 @@ async function explainPassword() {
     'All characters derived deterministically from this recipe and the master phrase.'
   ].join('\n');
 }
-
