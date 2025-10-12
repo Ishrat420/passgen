@@ -279,3 +279,108 @@ input:checked + .slider:before {
   font-weight: 500;
 }
 
+/* === Password Result Box === */
+#result {
+  display: none;
+  margin-top: 2rem;
+  padding: 1.6rem 1.2rem;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+/* Password text refined monospace style */
+#password {
+  display: block;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-weight: 500;
+  font-size: 1.2rem;
+  letter-spacing: 0.05rem;
+  margin-bottom: 0.50rem;
+  color: #111;
+  user-select: all;
+  word-break: break-word;
+}
+
+/* Recipe ID style */
+#recipeInfo {
+  display: block;
+  margin-top: 0.4rem;
+  margin-bottom: 1.2rem;
+  font-family: 'Courier New', monospace;
+  font-size: 1rem;
+  color: #555;
+  letter-spacing: 0.02rem;
+  text-align: center;
+}
+
+/* Explain button elegant black bar */
+#explainBtn {
+  background: #111;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+  width: 100%;
+  font-family: 'Courier New', monospace;
+  transition: background 0.25s ease, transform 0.1s ease;
+}
+#explainBtn:hover {
+  background: #222;
+  transform: translateY(-1px);
+}
+
+
+/* --- Copy Button: refined modern uplift --- */
+#copyBtn {
+  background: #111;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 1.3rem;
+  font-size: 0.95rem;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin-bottom: 0.6rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+#copyBtn:hover {
+  background: #000;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+}
+
+#copyBtn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background: #222;
+}
+
+/* Subtle success animation (used when "Copied!" triggers) */
+#copyBtn.copied {
+  background: #1b5e20; /* gentle green */
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(27, 94, 32, 0.4);
+}
+
+#result {
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  overflow: hidden;
+}
+
+.result-hidden {
+  max-height: 0;
+  opacity: 0;
+}
+
+.result-visible {
+  max-height: 300px; /* adjust depending on your layout */
+  opacity: 1;
+}

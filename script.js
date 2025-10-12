@@ -157,8 +157,27 @@ class PasswordGenerator {
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
-  initToggleExclusivity();
+    initToggleExclusivity();
+    const reactiveFields = [
+    'website', 'secret', 'algorithm', 'counter', 'length',
+    'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN'
+  ];
+
+  reactiveFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', hideResultBox);
+    el.addEventListener('change', hideResultBox);
+  });
+
+  function hideResultBox() {
+    const resultDiv = document.getElementById('result');
+    if (!resultDiv) return;
+    resultDiv.classList.remove('result-visible');
+    resultDiv.classList.add('result-hidden');
+  }
 });
+
 
 async function generate() {
   const site = document.getElementById('website').value.trim();
@@ -177,7 +196,6 @@ async function generate() {
   }
 
   try {
-    // 👇 Create a generator instance instead of calling global functions
     const generator = new PasswordGenerator({ algorithm: algo, length, policyOn, compatMode });
 
     // Generate password deterministically
@@ -201,6 +219,10 @@ async function generate() {
       diversityWarn.style.display = 'block';
       setTimeout(() => (diversityWarn.style.display = 'none'), 6000);
     }
+      
+      const resultDiv = document.getElementById('result');
+      resultDiv.classList.remove('result-hidden');
+      resultDiv.classList.add('result-visible');
 
     // Build recipe ID
     const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
@@ -304,13 +326,39 @@ function updateToggleVisual(toggle, label, lock) {
 }
 
 function copyToClipboard() {
-  const text = document.getElementById('password').innerText;
-  if (!text) return;
+  const pwSpan = document.getElementById('password');
+  const btn = document.getElementById('copyBtn');
+  const text = pwSpan.innerText.trim();
+  const originalLabel = btn.innerText;
+
+  if (text.includes('(hidden)')) {
+    pwSpan.innerText = window.lastGeneratedPassword || '⚠️ Regenerate first.';
+    btn.innerText = 'Copy';
+    return;
+  }
+
+  if (!text || text.startsWith('⚠️')) return;
+
+  window.lastGeneratedPassword = text;
+
   navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById('copyBtn');
-    const original = btn.innerText;
+    btn.classList.remove('copied');
     btn.innerText = 'Copied!';
-    setTimeout(() => (btn.innerText = original), 2000);
+    btn.classList.add('copied');
+
+    clearTimeout(btn._resetTimeout);
+    btn._resetTimeout = setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerText = originalLabel;
+    }, 3000);
+  }).catch(() => {
+    btn.innerText = 'Error';
+    btn.style.background = '#b71c1c';
+    clearTimeout(btn._resetTimeout);
+    btn._resetTimeout = setTimeout(() => {
+      btn.innerText = originalLabel;
+      btn.style.background = '';
+    }, 3000);
   });
 }
 
@@ -438,7 +486,6 @@ async function updateStorageInfo() {
   }
 }
 
-// Event bindings
 document.addEventListener('DOMContentLoaded', () => {
   const search = document.getElementById('searchHistory');
   search.addEventListener('input', e => updateHistoryList(e.target.value));
@@ -446,5 +493,26 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('exportBtn').addEventListener('click', exportHistory);
   document.getElementById('importBtn').addEventListener('click', importHistory);
   updateHistoryList();
+
+  // --- Hide result box when inputs change ---
+  const reactiveFields = [
+    'website', 'secret', 'algorithm', 'counter', 'length',
+    'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN'
+  ];
+
+  reactiveFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', hideResultBox);
+    el.addEventListener('change', hideResultBox);
+  });
+
+  function hideResultBox() {
+    const resultDiv = document.getElementById('result');
+    if (!resultDiv) return;
+    resultDiv.classList.remove('result-visible');
+    resultDiv.classList.add('result-hidden');
+  }
 });
+
 
