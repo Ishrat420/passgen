@@ -9,6 +9,13 @@ const CHARSETS = {
   symbols: '!@#$%^&*()-_=+[]{};:,.<>?'
 };
 
+/* --- Local Storage Setup --- */
+localforage.config({
+  name: 'PasswordGen',
+  storeName: 'recipes',
+  description: 'Stores recipe metadata for deterministic password generator'
+});
+
 
 /* ==========================================================================
    CLASS: CryptoHelper — Static cryptography utilities
@@ -190,6 +197,21 @@ async function generate() {
   const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
   const rid = await CryptoHelper.digest(recipe, 'SHA-256');
   document.getElementById('recipeInfo').innerText = 'Recipe ID ' + rid.slice(0, 8);
+    
+    //Saving data locally
+    const recipeData = {
+      id: rid.slice(0, 8),
+      site: nsite,
+      algorithm: algo,
+      length,
+      counter,
+      policyOn,
+      compatMode,
+      date: new Date().toISOString()
+    };
+
+    await localforage.setItem(recipeData.id, recipeData);
+    updateHistoryList(); // refresh list after saving
 
   clearTimeout(window.hideTimer);
   window.hideTimer = setTimeout(() => (pwSpan.innerText = '•••••••• (hidden)'), 30000);
@@ -281,3 +303,43 @@ async function explainPassword() {
     'All characters derived deterministically from this recipe and the master phrase.'
   ].join('\n');
 }
+
+/* ==========================================================================
+   LOCAL RECIPE HISTORY
+   ========================================================================== */
+
+async function updateHistoryList() {
+  const list = document.getElementById('historyList');
+  list.innerHTML = ''; // clear previous list
+  const keys = await localforage.keys();
+
+  if (!keys.length) {
+    list.innerHTML = '<li style="color:#555;">No recipes saved yet.</li>';
+    return;
+  }
+
+  for (const key of keys) {
+    const recipe = await localforage.getItem(key);
+    const li = document.createElement('li');
+    li.style.marginBottom = '0.3rem';
+    li.innerHTML = `
+      <strong>${recipe.site}</strong> 
+      — ${recipe.algorithm}, #${recipe.counter}, ${recipe.length} chars
+      <br><small>ID: ${recipe.id} | ${new Date(recipe.date).toLocaleString()}</small>
+    `;
+    list.appendChild(li);
+  }
+}
+
+async function clearHistory() {
+  if (confirm('Clear all saved recipes?')) {
+    await localforage.clear();
+    updateHistoryList();
+  }
+}
+
+// Attach clear button listener
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('clearHistoryBtn').addEventListener('click', clearHistory);
+  updateHistoryList(); // load history on startup
+});

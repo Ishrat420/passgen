@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
   <title>Deterministic Password Generator</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -72,6 +73,12 @@
     <label>PBKDF2 Iterations:</label><input type="number" id="iterations" value="100000" min="10000">
     <label>Argon2 Memory (MB):</label><input type="number" id="argonMem" value="64" min="8">
     <label>scrypt N (CPU cost):</label><input type="number" id="scryptN" value="16384" min="1024">
+        
+        <hr>
+        <details id="history">
+          <summary>Recipe History 🧾</summary>
+          <ul id="historyList"></ul>
+          <button id="clearHistoryBtn" style="margin-top:1rem;">Clear History</button>
   </details>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
