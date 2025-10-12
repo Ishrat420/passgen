@@ -77,22 +77,30 @@
   <h2>Custom Password Generator</h2>
 
   <label for="website">Website or App Name:</label>
-  <input type="text" id="website" placeholder="e.g. facebook" />
+  <input type="text" id="website" placeholder="e.g. facebook.com" />
 
   <label for="secret">Your Secret/Salt:</label>
-  <input type="text" id="secret" placeholder="e.g.chottoMate!42" />
+  <input type="text" id="secret" placeholder="e.g. ChottoMate!42" />
+
+  <label for="counter">Counter (for rotation):</label>
+  <input type="number" id="counter" value="0" min="0" />
 
   <label for="algorithm">Hashing/Encoding Method:</label>
   <select id="algorithm">
-    <option value="SHA-256">SHA-256</option>
-    <option value="SHA-1">SHA-1</option>
-    <option value="SHA-512">SHA-512</option>
-    <option value="MD5">MD5</option>
-    <option value="Base64">Base64</option>
+    <optgroup label="Secure (Recommended)">
+      <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
+      <option value="SHA-256">SHA-256</option>
+      <option value="SHA-512">SHA-512</option>
+    </optgroup>
+    <optgroup label="Legacy / Fun">
+      <option value="SHA-1">SHA-1</option>
+      <option value="MD5">MD5</option>
+      <option value="Base64">Base64</option>
+    </optgroup>
   </select>
 
   <label for="length">Characters to Use from Result:</label>
-  <input type="number" id="length" value="8" min="4" max="50" />
+  <input type="number" id="length" value="12" min="4" max="50" />
 
   <label for="suffix">Optional Suffix:</label>
   <input type="text" id="suffix" placeholder="e.g. UpLow123! (optional)" />
@@ -105,6 +113,18 @@
   </div>
 
   <script>
+    // Helper: normalize site input
+    function normalizeSite(site) {
+      try {
+        let url = site.trim();
+        if (!url.includes("://")) url = "https://" + url;
+        const hostname = new URL(url).hostname.toLowerCase();
+        return hostname.replace(/^www\./, "");
+      } catch (e) {
+        return site.trim().toLowerCase();
+      }
+    }
+
     // MD5 fallback using CryptoJS
     function md5(input) {
       return CryptoJS.MD5(input).toString();
@@ -115,9 +135,38 @@
       return btoa(unescape(encodeURIComponent(str)));
     }
 
+    async function pbkdf2(password, salt, iterations = 100000, keyLen = 32) {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]
+      );
+      const bits = await crypto.subtle.deriveBits(
+        {
+          name: "PBKDF2",
+          salt: enc.encode(salt),
+          iterations: iterations,
+          hash: "SHA-256"
+        },
+        keyMaterial,
+        keyLen * 8
+      );
+      return Array.from(new Uint8Array(bits))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    async function hash(input, algorithm) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(input);
+      const hashBuffer = await crypto.subtle.digest(algorithm, data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
     async function generate() {
       const website = document.getElementById("website").value.trim();
       const secret = document.getElementById("secret").value.trim();
+      const counter = document.getElementById("counter").value.trim() || "0";
       const algorithm = document.getElementById("algorithm").value;
       const suffix = document.getElementById("suffix").value || "";
       const length = parseInt(document.getElementById("length").value, 10);
@@ -130,20 +179,19 @@
         return;
       }
 
-      const input = website + secret;
+      const normalizedSite = normalizeSite(website);
+      const combinedInput = `${normalizedSite}|${secret}|${counter}`;
       let finalResult = "";
 
       try {
-        if (algorithm === "MD5") {
-          finalResult = md5(input);
+        if (algorithm === "PBKDF2-SHA256") {
+          finalResult = await pbkdf2(secret, combinedInput);
+        } else if (algorithm === "MD5") {
+          finalResult = md5(combinedInput);
         } else if (algorithm === "Base64") {
-          finalResult = base64Encode(input);
+          finalResult = base64Encode(combinedInput);
         } else {
-          const encoder = new TextEncoder();
-          const data = encoder.encode(input);
-          const hashBuffer = await crypto.subtle.digest(algorithm, data);
-          const hashArray = Array.from(new Uint8Array(hashBuffer));
-          finalResult = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+          finalResult = await hash(combinedInput, algorithm);
         }
 
         const password = finalResult.slice(0, length) + suffix;
