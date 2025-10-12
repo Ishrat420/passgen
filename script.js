@@ -305,30 +305,43 @@ async function explainPassword() {
 }
 
 /* ==========================================================================
-   LOCAL RECIPE HISTORY
+   LOCAL RECIPE HISTORY + SEARCH + IMPORT/EXPORT
    ========================================================================== */
 
-async function updateHistoryList() {
+async function updateHistoryList(filter = '') {
   const list = document.getElementById('historyList');
-  list.innerHTML = ''; // clear previous list
+  list.innerHTML = '';
   const keys = await localforage.keys();
 
   if (!keys.length) {
     list.innerHTML = '<li style="color:#555;">No recipes saved yet.</li>';
+    updateStorageInfo();
     return;
   }
 
+  let filteredCount = 0;
+
   for (const key of keys) {
     const recipe = await localforage.getItem(key);
+    if (filter && !recipe.site.toLowerCase().includes(filter.toLowerCase())) continue;
+    filteredCount++;
+
     const li = document.createElement('li');
-    li.style.marginBottom = '0.3rem';
     li.innerHTML = `
-      <strong>${recipe.site}</strong> 
-      — ${recipe.algorithm}, #${recipe.counter}, ${recipe.length} chars
-      <br><small>ID: ${recipe.id} | ${new Date(recipe.date).toLocaleString()}</small>
+      <strong>${recipe.site}</strong> — ${recipe.algorithm} <br>
+      <small>
+        ID: ${recipe.id} | Counter: ${recipe.counter} | ${recipe.length} chars |
+        ${new Date(recipe.date).toLocaleString()}
+      </small>
     `;
     list.appendChild(li);
   }
+
+  if (filteredCount === 0) {
+    list.innerHTML = '<li style="color:#999;">No matching results.</li>';
+  }
+
+  updateStorageInfo();
 }
 
 async function clearHistory() {
@@ -338,8 +351,62 @@ async function clearHistory() {
   }
 }
 
-// Attach clear button listener
+async function exportHistory() {
+  const keys = await localforage.keys();
+  const data = [];
+  for (const key of keys) data.push(await localforage.getItem(key));
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'passwordgen_recipes.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importHistory() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    try {
+      const data = JSON.parse(text);
+      if (!Array.isArray(data)) throw new Error('Invalid file format');
+      for (const recipe of data) {
+        if (recipe.id && recipe.site) {
+          await localforage.setItem(recipe.id, recipe);
+        }
+      }
+      alert(`✅ Imported ${data.length} recipes`);
+      updateHistoryList();
+    } catch (err) {
+      alert('❌ Failed to import JSON: ' + err.message);
+    }
+  };
+  input.click();
+}
+
+async function updateStorageInfo() {
+  if (navigator.storage && navigator.storage.estimate) {
+    const { usage, quota } = await navigator.storage.estimate();
+    const usedMB = (usage / 1024 / 1024).toFixed(2);
+    const quotaMB = (quota / 1024 / 1024).toFixed(0);
+    document.getElementById('storageInfo').textContent = `Storage used: ${usedMB} MB / ${quotaMB} MB`;
+  }
+}
+
+// Event bindings
 document.addEventListener('DOMContentLoaded', () => {
+  const search = document.getElementById('searchHistory');
+  search.addEventListener('input', e => updateHistoryList(e.target.value));
   document.getElementById('clearHistoryBtn').addEventListener('click', clearHistory);
-  updateHistoryList(); // load history on startup
+  document.getElementById('exportBtn').addEventListener('click', exportHistory);
+  document.getElementById('importBtn').addEventListener('click', importHistory);
+  updateHistoryList();
 });
+

@@ -75,10 +75,28 @@
     <label>scrypt N (CPU cost):</label><input type="number" id="scryptN" value="16384" min="1024">
         
         <hr>
-        <details id="history">
-          <summary>Recipe History 🧾</summary>
-          <ul id="historyList"></ul>
-          <button id="clearHistoryBtn" style="margin-top:1rem;">Clear History</button>
+
+        <details id="history" open>
+          <summary>🔐 Saved Recipes</summary>
+
+          <div class="history-controls">
+            <input
+              type="text"
+              id="searchHistory"
+              placeholder="Search by site..."
+              class="search-box"
+            />
+            <div class="history-buttons">
+              <button id="exportBtn">Export JSON</button>
+              <button id="importBtn">Import JSON</button>
+              <button id="clearHistoryBtn">Clear All</button>
+            </div>
+          </div>
+
+          <ul id="historyList" class="history-list"></ul>
+          <small id="storageInfo" style="color:#555;"></small>
+        </details>
+
   </details>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>

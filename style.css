@@ -180,4 +180,92 @@ input:checked + .slider:before {
   opacity: 1;
 }
 
+/* --- History Section Styling --- */
+#history {
+  margin-top: 2rem;
+}
+
+#history summary {
+  font-weight: bold;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.history-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.history-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.history-buttons button {
+  flex: 1;
+  min-width: 100px;
+  background: #222;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 0.8rem;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.history-buttons button:hover {
+  background: #444;
+}
+
+.search-box {
+  width: 100%;
+  padding: 0.6rem;
+  font-family: inherit;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 0.9rem;
+}
+
+.history-list {
+  list-style: none;
+  margin-top: 1rem;
+  padding: 0;
+  border-top: 1px solid #ddd;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.history-list li {
+  padding: 0.6rem 0.2rem;
+  border-bottom: 1px solid #eee;
+}
+
+.history-list li strong {
+  color: #111;
+}
+
+.history-list small {
+  color: #666;
+}
+
+.history-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-list::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 3px;
+}
+
+#storageInfo {
+  display: block;
+  margin-top: 0.6rem;
+  text-align: right;
+  font-size: 0.85rem;
+}
+
 
