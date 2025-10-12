@@ -1,122 +1,190 @@
-const lowers = 'abcdefghijklmnopqrstuvwxyz',
-      uppers = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-      digits = '0123456789',
-      symbols = '!@#$%^&*()-_=+[]{};:,.<>?';
+/* ==========================================================================
+   CONSTANTS
+   ========================================================================== */
+
+const CHARSETS = {
+  lowers: 'abcdefghijklmnopqrstuvwxyz',
+  uppers: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  digits: '0123456789',
+  symbols: '!@#$%^&*()-_=+[]{};:,.<>?'
+};
 
 
-// Handle mutual exclusivity between compatibility and diversity toggles
+/* ==========================================================================
+   INITIALIZATION — Runs when DOM is ready
+   ========================================================================== */
+
 document.addEventListener('DOMContentLoaded', () => {
+  initToggleExclusivity();
+});
+
+
+/* ==========================================================================
+   TOGGLE HANDLING — Mutual exclusivity between Policy and Compatibility
+   ========================================================================== */
+
+function initToggleExclusivity() {
   const policyToggle = document.getElementById('policyToggle');
   const compatToggle = document.getElementById('compatToggle');
-  const policyHint = document.getElementById('policyHint');
-  const compatHint = document.getElementById('compatHint');
-    
-    function updateToggleState() {
-      // Policy toggle visual state
-      if (policyToggle.disabled) {
-        policyLabel.classList.add('disabled');
-        policyLock.classList.add('show');
-      } else {
-        policyLabel.classList.remove('disabled');
-        policyLock.classList.remove('show');
-      }
+  const policyLabel = document.querySelector('label[for="policyToggle"]');
+  const compatLabel = document.querySelector('label[for="compatToggle"]');
 
-      // Compat toggle visual state
-      if (compatToggle.disabled) {
-        compatLabel.classList.add('disabled');
-        compatLock.classList.add('show');
-      } else {
-        compatLabel.classList.remove('disabled');
-        compatLock.classList.remove('show');
-      }
+  // Add lock icons dynamically
+  const policyLock = createLockIcon();
+  const compatLock = createLockIcon();
+  policyLabel.appendChild(policyLock);
+  compatLabel.appendChild(compatLock);
+
+  // Update visual states
+  const updateUI = () => {
+    updateToggleVisual(policyToggle, policyLabel, policyLock);
+    updateToggleVisual(compatToggle, compatLabel, compatLock);
+  };
+
+  policyToggle.addEventListener('change', () => {
+    if (policyToggle.checked) {
+      compatToggle.checked = false;
+      compatToggle.disabled = true;
+    } else {
+      compatToggle.disabled = false;
     }
+    updateUI();
+  });
 
-    policyToggle.addEventListener('change', () => {
-      if (policyToggle.checked) {
-        compatToggle.checked = false;
-        compatToggle.disabled = true;
-      } else {
-        compatToggle.disabled = false;
-      }
-      updateToggleState();
-    });
+  compatToggle.addEventListener('change', () => {
+    if (compatToggle.checked) {
+      policyToggle.checked = false;
+      policyToggle.disabled = true;
+    } else {
+      policyToggle.disabled = false;
+    }
+    updateUI();
+  });
+}
 
-    compatToggle.addEventListener('change', () => {
-      if (compatToggle.checked) {
-        policyToggle.checked = false;
-        policyToggle.disabled = true;
-      } else {
-        policyToggle.disabled = false;
-      }
-      updateToggleState();
-    });
-});
+function createLockIcon() {
+  const lock = document.createElement('span');
+  lock.className = 'switch-lock';
+  lock.textContent = '🔒';
+  return lock;
+}
+
+function updateToggleVisual(toggle, label, lock) {
+  if (toggle.disabled) {
+    label.classList.add('disabled');
+    lock.classList.add('show');
+  } else {
+    label.classList.remove('disabled');
+    lock.classList.remove('show');
+  }
+}
+
+
+/* ==========================================================================
+   UTILITY FUNCTIONS
+   ========================================================================== */
 
 function normalizeSite(site) {
   try {
-    let u = site.trim();
-    if (!u.includes('://')) u = 'https://' + u;
-    return new URL(u).hostname.toLowerCase().replace(/^www\./, '');
+    let url = site.trim();
+    if (!url.includes('://')) url = 'https://' + url;
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, '');
   } catch {
     return site.toLowerCase().trim();
   }
 }
 
 function hexToBytes(hex) {
-  const a = [];
-  for (let i = 0; i < hex.length; i += 2) a.push(parseInt(hex.slice(i, i + 2), 16));
-  return a;
+  const bytes = [];
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.slice(i, i + 2), 16));
+  }
+  return bytes;
 }
 
+
+/* ==========================================================================
+   CRYPTOGRAPHY HELPERS
+   ========================================================================== */
+
 async function pbkdf2(pass, salt, iters = 100000, len = 32) {
-  const e = new TextEncoder();
-  const m = await crypto.subtle.importKey('raw', e.encode(pass), 'PBKDF2', false, ['deriveBits']);
-  const b = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: e.encode(salt), iterations: iters, hash: 'SHA-256' },
-    m,
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations: iters, hash: 'SHA-256' },
+    key,
     len * 8
   );
-  return Array.from(new Uint8Array(b)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return bufferToHex(bits);
 }
 
 async function argon2Hash(pass, salt, memMB = 64) {
-  const o = { pass, salt, time: 3, mem: memMB * 1024, parallelism: 1, hashLen: 32, type: argon2.ArgonType.Argon2id };
-  const { hashHex } = await argon2.hash(o);
+  const opts = {
+    pass,
+    salt,
+    time: 3,
+    mem: memMB * 1024,
+    parallelism: 1,
+    hashLen: 32,
+    type: argon2.ArgonType.Argon2id
+  };
+  const { hashHex } = await argon2.hash(opts);
   return hashHex;
 }
 
 async function scryptHash(pass, salt, N = 16384) {
-  const e = new TextEncoder();
-  const dk = await scrypt.scrypt(e.encode(pass), e.encode(salt), N, 8, 1, 32);
-  return Array.from(dk).map(b => b.toString(16).padStart(2, '0')).join('');
+  const enc = new TextEncoder();
+  const dk = await scrypt.scrypt(enc.encode(pass), enc.encode(salt), N, 8, 1, 32);
+  return bufferToHex(dk);
 }
 
 async function digestHex(input, algo = 'SHA-256') {
-  const e = new TextEncoder();
-  const d = e.encode(input);
-  const h = await crypto.subtle.digest(algo, d);
-  return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('');
+  const enc = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest(algo, enc.encode(input));
+  return bufferToHex(hashBuffer);
 }
+
+function bufferToHex(buffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+
+/* ==========================================================================
+   PASSWORD GENERATION
+   ========================================================================== */
 
 function mapToPassword(hex, len = 16, policyOn = true, compatMode = false) {
   const bytes = hexToBytes(hex);
-  let charset = compatMode
-    ? lowers + uppers + digits + '!@#$%^&*()-_=+'
-    : lowers + uppers + digits + symbols;
-  let pwd = '';
-  for (let i = 0; i < len; i++) {
-    pwd += charset[bytes[i % bytes.length] % charset.length];
-  }
-  if (!policyOn) return pwd;
 
-  const arr = pwd.split('');
-  const cats = [uppers, lowers, digits, symbols];
-  cats.forEach((set, idx) => {
+  const charset = compatMode
+    ? CHARSETS.lowers + CHARSETS.uppers + CHARSETS.digits + '!@#$%^&*()-_=+'
+    : CHARSETS.lowers + CHARSETS.uppers + CHARSETS.digits + CHARSETS.symbols;
+
+  let password = '';
+  for (let i = 0; i < len; i++) {
+    password += charset[bytes[i % bytes.length] % charset.length];
+  }
+
+  if (!policyOn) return password;
+
+  // Ensure deterministic diversity (A-Z, a-z, 0-9, symbol)
+  const arr = password.split('');
+  const categories = [CHARSETS.uppers, CHARSETS.lowers, CHARSETS.digits, CHARSETS.symbols];
+
+  categories.forEach((set, idx) => {
     const pos = bytes[idx + 4] % arr.length;
     arr[pos] = set[bytes[idx] % set.length];
   });
+
   return arr.join('');
 }
+
+
+/* ==========================================================================
+   MAIN GENERATION WORKFLOW
+   ========================================================================== */
 
 async function generate() {
   const site = document.getElementById('website').value.trim();
@@ -126,12 +194,14 @@ async function generate() {
   const length = parseInt(document.getElementById('length').value, 10);
   const policyOn = document.getElementById('policyToggle').checked;
   const compatMode = document.getElementById('compatToggle').checked;
+
   const resultDiv = document.getElementById('result');
   const pwSpan = document.getElementById('password');
+  const warn = document.getElementById('diversityWarning');
 
   if (!site || !secret) {
     resultDiv.style.display = 'block';
-    pwSpan.innerText = 'Please enter website and secret.';
+    pwSpan.innerText = '⚠️ Please enter website and secret.';
     return;
   }
 
@@ -140,59 +210,69 @@ async function generate() {
   let hex;
 
   try {
-    if (algo === 'PBKDF2-SHA256')
-      hex = await pbkdf2(secret, combined, parseInt(document.getElementById('iterations').value));
-    else if (algo === 'Argon2id')
-      hex = await argon2Hash(secret, combined, parseInt(document.getElementById('argonMem').value));
-    else if (algo === 'scrypt')
-      hex = await scryptHash(secret, combined, parseInt(document.getElementById('scryptN').value));
-    else
-      hex = await digestHex(combined, algo);
-
-    const pwd = mapToPassword(hex, length, policyOn, compatMode);
-    resultDiv.style.display = 'block';
-    pwSpan.innerText = pwd;
-
-    const diversityWarn = document.getElementById('diversityWarning');
-    diversityWarn.style.display = 'none';
-    diversityWarn.innerText = '';
-
-    if (policyOn) {
-      const hasUpper = /[A-Z]/.test(pwd);
-      const hasLower = /[a-z]/.test(pwd);
-      const hasDigit = /\d/.test(pwd);
-      const hasSymbol = /[^A-Za-z0-9]/.test(pwd);
-
-      if (!(hasUpper && hasLower && hasDigit && hasSymbol)) {
-        diversityWarn.innerText = "⚠️ Password lacks full character diversity. Try increasing 'Characters to Use'.";
-        diversityWarn.style.display = 'block';
-        setTimeout(() => (diversityWarn.style.display = 'none'), 8000);
-      }
+    switch (algo) {
+      case 'PBKDF2-SHA256':
+        hex = await pbkdf2(secret, combined, parseInt(document.getElementById('iterations').value));
+        break;
+      case 'Argon2id':
+        hex = await argon2Hash(secret, combined, parseInt(document.getElementById('argonMem').value));
+        break;
+      case 'scrypt':
+        hex = await scryptHash(secret, combined, parseInt(document.getElementById('scryptN').value));
+        break;
+      default:
+        hex = await digestHex(combined, algo);
     }
 
-    const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}`;
+    const pwd = mapToPassword(hex, length, policyOn, compatMode);
+    pwSpan.innerText = pwd;
+    resultDiv.style.display = 'block';
+
+    // Diversity warning
+    warn.style.display = 'none';
+    if (policyOn && !isPasswordDiverse(pwd)) {
+      warn.innerText = "⚠️ Password lacks full character diversity. Try increasing 'Characters to Use'.";
+      warn.style.display = 'block';
+      setTimeout(() => (warn.style.display = 'none'), 8000);
+    }
+
+    // Recipe ID & auto-hide
+    const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
     const rid = await digestHex(recipe, 'SHA-256');
     document.getElementById('recipeInfo').innerText = 'Recipe ID ' + rid.slice(0, 8);
 
     clearTimeout(window.hideTimer);
-    window.hideTimer = setTimeout(() => {
-      pwSpan.innerText = '•••••••• (hidden)';
-    }, 30000);
+    window.hideTimer = setTimeout(() => (pwSpan.innerText = '•••••••• (hidden)'), 30000);
 
     document.getElementById('explainBox').style.display = 'none';
-  } catch (e) {
-    pwSpan.innerText = 'Error ' + e;
+  } catch (err) {
+    pwSpan.innerText = 'Error: ' + err.message;
   }
 }
 
+
+/* ==========================================================================
+   HELPERS — UI & Explanation
+   ========================================================================== */
+
+function isPasswordDiverse(pwd) {
+  return (
+    /[A-Z]/.test(pwd) &&
+    /[a-z]/.test(pwd) &&
+    /\d/.test(pwd) &&
+    /[^A-Za-z0-9]/.test(pwd)
+  );
+}
+
 function copyToClipboard() {
-  const t = document.getElementById('password').innerText;
-  if (!t) return;
-  navigator.clipboard.writeText(t).then(() => {
-    const b = document.getElementById('copyBtn');
-    const o = b.innerText;
-    b.innerText = 'Copied!';
-    setTimeout(() => (b.innerText = o), 2000);
+  const text = document.getElementById('password').innerText;
+  if (!text) return;
+
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    const original = btn.innerText;
+    btn.innerText = 'Copied!';
+    setTimeout(() => (btn.innerText = original), 2000);
   });
 }
 
@@ -205,24 +285,22 @@ async function explainPassword() {
   const nsite = normalizeSite(site);
   const policyOn = document.getElementById('policyToggle').checked;
   const compatMode = document.getElementById('compatToggle').checked;
-    const policyLabel = document.querySelector('label[for="policyToggle"]');
-    const compatLabel = document.querySelector('label[for="compatToggle"]');
-
-    // Create lock icons
-    const policyLock = document.createElement('span');
-    policyLock.className = 'switch-lock';
-    policyLock.textContent = '🔒';
-    policyLabel.appendChild(policyLock);
-
-    const compatLock = document.createElement('span');
-    compatLock.className = 'switch-lock';
-    compatLock.textContent = '🔒';
-    compatLabel.appendChild(compatLock);
 
   const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
   const rid = await digestHex(recipe, 'SHA-256');
+
   const box = document.getElementById('explainBox');
   box.style.display = 'block';
-  box.textContent = `Algorithm: ${algo}\nNormalized site: ${nsite}\nCounter: ${counter}\nLength: ${length}\nDeterministic policy: ${document.getElementById('policyToggle').checked}\nRecipe ID: ${rid.slice(0, 8)}\n\nAll characters derived deterministically from this recipe and the master phrase.`;
+  box.textContent = [
+    `Algorithm: ${algo}`,
+    `Normalized site: ${nsite}`,
+    `Counter: ${counter}`,
+    `Length: ${length}`,
+    `Deterministic policy: ${policyOn}`,
+    `Compatibility mode: ${compatMode}`,
+    `Recipe ID: ${rid.slice(0, 8)}`,
+    '',
+    'All characters derived deterministically from this recipe and the master phrase.'
+  ].join('\n');
 }
 
