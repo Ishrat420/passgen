@@ -1,222 +1,132 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Custom Password Generator</title>
-  <style>
-    body {
-      background-color: #eeeeee;
-      color: #111;
-      font-family: 'Courier New', Courier, monospace;
-      padding: 2rem;
-      max-width: 500px;
-      margin: auto;
-    }
-
-    h2 {
-      text-align: center;
-      margin-bottom: 1.5rem;
-    }
-
-    label {
-      display: block;
-      margin-top: 1rem;
-      font-weight: bold;
-    }
-
-    input, select, button {
-      width: 100%;
-      padding: 0.8rem;
-      margin-top: 0.3rem;
-      font-family: inherit;
-      font-size: 1rem;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      box-sizing: border-box;
-    }
-
-    button {
-      background-color: #222;
-      color: white;
-      cursor: pointer;
-      margin-top: 1.5rem;
-    }
-
-    button:hover {
-      background-color: #444;
-    }
-
-    #result {
-      margin-top: 2rem;
-      padding: 1rem;
-      background: white;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      text-align: center;
-      word-break: break-word;
-      font-size: 1.2rem;
-      position: relative;
-    }
-
-    #copyBtn {
-      margin-top: 0.5rem;
-      font-size: 0.9rem;
-      width: auto;
-      padding: 0.5rem 1rem;
-    }
-
-    @media (max-width: 600px) {
-      body {
-        padding: 1rem;
-      }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deterministic Password Generator</title>
+<style>
+body{background:#eee;color:#111;font-family:'Courier New',monospace;max-width:550px;margin:auto;padding:2rem}
+h2{text-align:center}
+label{display:block;margin-top:1rem;font-weight:bold}
+input,select,button{width:100%;padding:.8rem;margin-top:.3rem;font-family:inherit;font-size:1rem;border:1px solid #ccc;border-radius:5px;box-sizing:border-box}
+button{background:#222;color:#fff;cursor:pointer;margin-top:1.5rem}
+button:hover{background:#444}
+#result{margin-top:2rem;padding:1rem;background:#fff;border:1px solid #ccc;border-radius:5px;text-align:center;word-break:break-word;font-size:1.2rem;position:relative}
+#copyBtn{margin-top:.5rem;font-size:.9rem;width:auto;padding:.5rem 1rem}
+small{color:#555}
+details{margin-top:1rem}
+</style>
 </head>
 <body>
-  <h2>Custom Password Generator</h2>
+<h2>Custom Password Generator</h2>
 
-  <label for="website">Website or App Name:</label>
-  <input type="text" id="website" placeholder="e.g. facebook.com" />
+<label>Website or App Name:</label>
+<input id="website" placeholder="e.g. facebook.com">
 
-  <label for="secret">Your Secret/Salt:</label>
-  <input type="text" id="secret" placeholder="e.g. ChottoMate!42" />
+<label>Your Secret / Master Phrase:</label>
+<input id="secret" placeholder="e.g. ChottoMate!42">
 
-  <label for="counter">Counter (for rotation):</label>
-  <input type="number" id="counter" value="0" min="0" />
+<label>Counter (for rotation):</label>
+<input type="number" id="counter" value="0" min="0">
 
-  <label for="algorithm">Hashing/Encoding Method:</label>
-  <select id="algorithm">
-    <optgroup label="Secure (Recommended)">
-      <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
-      <option value="SHA-256">SHA-256</option>
-      <option value="SHA-512">SHA-512</option>
-    </optgroup>
-    <optgroup label="Legacy / Fun">
-      <option value="SHA-1">SHA-1</option>
-      <option value="MD5">MD5</option>
-      <option value="Base64">Base64</option>
-    </optgroup>
-  </select>
+<label>Algorithm:</label>
+<select id="algorithm">
+  <optgroup label="Secure (Recommended)">
+    <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
+    <option value="Argon2id">Argon2id</option>
+    <option value="scrypt">scrypt</option>
+  </optgroup>
+  <optgroup label="Simple">
+    <option value="SHA-256">SHA-256</option>
+    <option value="SHA-512">SHA-512</option>
+  </optgroup>
+</select>
 
-  <label for="length">Characters to Use from Result:</label>
-  <input type="number" id="length" value="12" min="4" max="50" />
+<label>Characters to Use from Result:</label>
+<input type="number" id="length" value="16" min="4" max="50">
 
-  <label for="suffix">Optional Suffix:</label>
-  <input type="text" id="suffix" placeholder="e.g. UpLow123! (optional)" />
+<label>Optional Suffix:</label>
+<input id="suffix" placeholder="e.g. !2025">
 
-  <button onclick="generate()">Generate Password</button>
+<label><input type="checkbox" id="policyToggle" checked> Enforce deterministic character policy (A-Z a-z 0-9 symbol)</label>
 
-  <div id="result" style="display:none;">
-    <span id="password"></span><br />
-    <button id="copyBtn" onclick="copyToClipboard()">Copy</button>
-  </div>
+<button onclick="generate()">Generate Password</button>
+<div id="result" style="display:none;">
+  <span id="password"></span><br>
+  <button id="copyBtn" onclick="copyToClipboard()">Copy</button><br>
+  <small id="recipeInfo"></small><br>
+  <button id="explainBtn" onclick="explainPassword()">🔍 Explain My Password</button>
+  <div id="explainBox" style="display:none;text-align:left;margin-top:1rem;font-size:.9rem;white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;padding:.5rem;border-radius:5px;"></div>
+</div>
 
-  <script>
-    // Helper: normalize site input
-    function normalizeSite(site) {
-      try {
-        let url = site.trim();
-        if (!url.includes("://")) url = "https://" + url;
-        const hostname = new URL(url).hostname.toLowerCase();
-        return hostname.replace(/^www\./, "");
-      } catch (e) {
-        return site.trim().toLowerCase();
-      }
-    }
+<details>
+  <summary>Advanced Options ⚙️</summary>
+  <label>PBKDF2 Iterations:</label><input type="number" id="iterations" value="100000" min="10000">
+  <label>Argon2 Memory (MB):</label><input type="number" id="argonMem" value="64" min="8">
+  <label>scrypt N (CPU cost):</label><input type="number" id="scryptN" value="16384" min="1024">
+</details>
 
-    // MD5 fallback using CryptoJS
-    function md5(input) {
-      return CryptoJS.MD5(input).toString();
-    }
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
 
-    // Base64 encoder (UTF-8 safe)
-    function base64Encode(str) {
-      return btoa(unescape(encodeURIComponent(str)));
-    }
-
-    async function pbkdf2(password, salt, iterations = 100000, keyLen = 32) {
-      const enc = new TextEncoder();
-      const keyMaterial = await crypto.subtle.importKey(
-        "raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]
-      );
-      const bits = await crypto.subtle.deriveBits(
-        {
-          name: "PBKDF2",
-          salt: enc.encode(salt),
-          iterations: iterations,
-          hash: "SHA-256"
-        },
-        keyMaterial,
-        keyLen * 8
-      );
-      return Array.from(new Uint8Array(bits))
-        .map(b => b.toString(16).padStart(2, "0"))
-        .join("");
-    }
-
-    async function hash(input, algorithm) {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(input);
-      const hashBuffer = await crypto.subtle.digest(algorithm, data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-    }
-
-    async function generate() {
-      const website = document.getElementById("website").value.trim();
-      const secret = document.getElementById("secret").value.trim();
-      const counter = document.getElementById("counter").value.trim() || "0";
-      const algorithm = document.getElementById("algorithm").value;
-      const suffix = document.getElementById("suffix").value || "";
-      const length = parseInt(document.getElementById("length").value, 10);
-      const resultDiv = document.getElementById("result");
-      const passwordSpan = document.getElementById("password");
-
-      if (!website || !secret) {
-        resultDiv.style.display = "block";
-        passwordSpan.innerText = "Please enter website and secret.";
-        return;
-      }
-
-      const normalizedSite = normalizeSite(website);
-      const combinedInput = `${normalizedSite}|${secret}|${counter}`;
-      let finalResult = "";
-
-      try {
-        if (algorithm === "PBKDF2-SHA256") {
-          finalResult = await pbkdf2(secret, combinedInput);
-        } else if (algorithm === "MD5") {
-          finalResult = md5(combinedInput);
-        } else if (algorithm === "Base64") {
-          finalResult = base64Encode(combinedInput);
-        } else {
-          finalResult = await hash(combinedInput, algorithm);
-        }
-
-        const password = finalResult.slice(0, length) + suffix;
-        resultDiv.style.display = "block";
-        passwordSpan.innerText = password;
-      } catch (error) {
-        resultDiv.style.display = "block";
-        passwordSpan.innerText = "Error: " + error;
-      }
-    }
-
-    function copyToClipboard() {
-      const password = document.getElementById("password").innerText;
-      navigator.clipboard.writeText(password).then(() => {
-        const btn = document.getElementById("copyBtn");
-        const original = btn.innerText;
-        btn.innerText = "Copied!";
-        setTimeout(() => {
-          btn.innerText = original;
-        }, 2000);
-      });
-    }
-  </script>
-
-  <!-- Load CryptoJS MD5 support -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<script>
+const lowers='abcdefghijklmnopqrstuvwxyz',uppers='ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+digits='0123456789',symbols='!@#$%^&*()-_=+[]{};:,.<>?';
+function normalizeSite(site){try{let u=site.trim();if(!u.includes('://'))u='https://'+u;return new URL(u).hostname.toLowerCase().replace(/^www\./,'')}catch{return site.toLowerCase().trim()}}
+function hexToBytes(hex){const a=[];for(let i=0;i<hex.length;i+=2)a.push(parseInt(hex.slice(i,i+2),16));return a}
+function md5(x){return CryptoJS.MD5(x).toString()}
+async function pbkdf2(pass,salt,iters=100000,len=32){const e=new TextEncoder();const m=await crypto.subtle.importKey('raw',e.encode(pass),'PBKDF2',false,['deriveBits']);const b=await crypto.subtle.deriveBits({name:'PBKDF2',salt:e.encode(salt),iterations:iters,hash:'SHA-256'},m,len*8);return Array.from(new Uint8Array(b)).map(b=>b.toString(16).padStart(2,'0')).join('')}
+async function argon2Hash(pass,salt,memMB=64){const o={pass,salt,time:3,mem:memMB*1024,parallelism:1,hashLen:32,type:argon2.ArgonType.Argon2id};const {hashHex}=await argon2.hash(o);return hashHex}
+async function scryptHash(pass,salt,N=16384){const e=new TextEncoder();const dk=await scrypt.scrypt(e.encode(pass),e.encode(salt),N,8,1,32);return Array.from(dk).map(b=>b.toString(16).padStart(2,'0')).join('')}
+async function digestHex(input,algo='SHA-256'){const e=new TextEncoder();const d=e.encode(input);const h=await crypto.subtle.digest(algo,d);return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('')}
+function mapToPassword(hex,len=16,policyOn=true){const bytes=hexToBytes(hex);let charset=lowers+uppers+digits+symbols;let pwd='';for(let i=0;i<len;i++){pwd+=charset[bytes[i%bytes.length]%charset.length]}
+if(!policyOn)return pwd;
+// deterministic category enforcement
+const arr=pwd.split('');const cats=[uppers,lowers,digits,symbols];
+cats.forEach((set,idx)=>{const pos=bytes[idx+4]%arr.length;arr[pos]=set[bytes[idx]%set.length]});return arr.join('')}
+async function generate(){
+ const site=document.getElementById('website').value.trim();
+ const secret=document.getElementById('secret').value.trim();
+ const counter=document.getElementById('counter').value.trim()||'0';
+ const algo=document.getElementById('algorithm').value;
+ const suffix=document.getElementById('suffix').value||'';
+ const length=parseInt(document.getElementById('length').value,10);
+ const policyOn=document.getElementById('policyToggle').checked;
+ const resultDiv=document.getElementById('result');const pwSpan=document.getElementById('password');
+ if(!site||!secret){resultDiv.style.display='block';pwSpan.innerText='Please enter website and secret.';return;}
+ const nsite=normalizeSite(site);const combined=`${nsite}|${secret}|${counter}`;
+ let hex;
+ try{
+   if(algo==='PBKDF2-SHA256')hex=await pbkdf2(secret,combined,parseInt(document.getElementById('iterations').value));
+   else if(algo==='Argon2id')hex=await argon2Hash(secret,combined,parseInt(document.getElementById('argonMem').value));
+   else if(algo==='scrypt')hex=await scryptHash(secret,combined,parseInt(document.getElementById('scryptN').value));
+   else hex=await digestHex(combined,algo);
+   const pwd=mapToPassword(hex,length,policyOn)+suffix;
+   resultDiv.style.display='block';pwSpan.innerText=pwd;
+   // recipe ID checksum
+   const recipe=`${algo}|${nsite}|${counter}|${length}|${policyOn}`;
+   const rid=await digestHex(recipe,'SHA-256');document.getElementById('recipeInfo').innerText='Recipe ID '+rid.slice(0,8);
+   // auto-hide
+   clearTimeout(window.hideTimer);
+   window.hideTimer=setTimeout(()=>{pwSpan.innerText='•••••••• (hidden)';},30000);
+   document.getElementById('explainBox').style.display='none';
+ }catch(e){pwSpan.innerText='Error '+e}
+}
+function copyToClipboard(){const t=document.getElementById('password').innerText;if(!t)return;navigator.clipboard.writeText(t).then(()=>{const b=document.getElementById('copyBtn');const o=b.innerText;b.innerText='Copied!';setTimeout(()=>b.innerText=o,2000)})}
+async function explainPassword(){
+ const site=document.getElementById('website').value.trim();
+ const secret=document.getElementById('secret').value.trim();
+ const counter=document.getElementById('counter').value.trim()||'0';
+ const algo=document.getElementById('algorithm').value;
+ const length=document.getElementById('length').value;
+ const nsite=normalizeSite(site);
+ const recipe=`${algo}|${nsite}|${counter}|${length}`;
+ const rid=await digestHex(recipe,'SHA-256');
+ const box=document.getElementById('explainBox');
+ box.style.display='block';
+ box.textContent=`Algorithm: ${algo}\nNormalized site: ${nsite}\nCounter: ${counter}\nLength: ${length}\nDeterministic policy: ${document.getElementById('policyToggle').checked}\nRecipe ID: ${rid.slice(0,8)}\n\nAll characters derived deterministically from this recipe and the master phrase.`;
+}
+</script>
 </body>
 </html>
