@@ -73,32 +73,29 @@
     <label>PBKDF2 Iterations:</label><input type="number" id="iterations" value="100000" min="10000">
     <label>Argon2 Memory (MB):</label><input type="number" id="argonMem" value="64" min="8">
     <label>scrypt N (CPU cost):</label><input type="number" id="scryptN" value="16384" min="1024">
-        
-        <hr>
-
-        <details id="history" open>
-          <summary>🔐 Saved Recipes</summary>
-
-          <div class="history-controls">
-            <input
-              type="text"
-              id="searchHistory"
-              placeholder="Search by site..."
-              class="search-box"
-            />
-            <div class="history-buttons">
-              <button id="exportBtn">Export JSON</button>
-              <button id="importBtn">Import JSON</button>
-              <button id="clearHistoryBtn">Clear All</button>
-            </div>
-          </div>
-
-          <ul id="historyList" class="history-list"></ul>
-          <small id="storageInfo" style="color:#555;"></small>
-        </details>
-
   </details>
+  <hr>
+  <details id="history" open>
+    <summary>🔐 Saved Recipes</summary>
 
+    <div class="history-controls">
+      <input
+        type="text"
+        id="searchHistory"
+        placeholder="Search by site..."
+        class="search-box"
+      />
+      <div class="history-buttons">
+        <button id="exportBtn">Export JSON</button>
+        <button id="importBtn">Import JSON</button>
+        <button id="clearHistoryBtn">Clear All</button>
+      </div>
+    </div>
+
+    <ul id="historyList" class="history-list"></ul>
+    <small id="storageInfo" style="color:#555;"></small>
+  </details>
+  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>

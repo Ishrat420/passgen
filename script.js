@@ -169,36 +169,45 @@ async function generate() {
   const policyOn = document.getElementById('policyToggle').checked;
   const compatMode = document.getElementById('compatToggle').checked;
 
-  const resultDiv = document.getElementById('result');
-  const pwSpan = document.getElementById('password');
-  const warn = document.getElementById('diversityWarning');
+  resetUI({ clearPassword: true, clearRecipe: true });
 
   if (!site || !secret) {
-    resultDiv.style.display = 'block';
-    pwSpan.innerText = '⚠️ Please enter website and secret.';
+    resetUI({ showError: 'Please enter website and secret.', clearRecipe: true });
     return;
   }
 
-  const gen = new PasswordGenerator({ algorithm: algo, length, policyOn, compatMode });
-  const { password, nsite } = await gen.generate(site, secret, counter);
+  try {
+    // 👇 Create a generator instance instead of calling global functions
+    const generator = new PasswordGenerator({ algorithm: algo, length, policyOn, compatMode });
 
-  pwSpan.innerText = password;
-  resultDiv.style.display = 'block';
+    // Generate password deterministically
+    const { password, nsite, hex } = await generator.generate(site, secret, counter);
 
-  // Diversity feedback
-  warn.style.display = 'none';
-  if (policyOn && !gen.isDiverse(password)) {
-    warn.innerText = "⚠️ Password lacks full character diversity. Try increasing 'Characters to Use'.";
-    warn.style.display = 'block';
-    setTimeout(() => (warn.style.display = 'none'), 8000);
-  }
+    // Update UI
+    const pwSpan = document.getElementById('password');
+    const copyBtn = document.getElementById('copyBtn');
+    const diversityWarn = document.getElementById('diversityWarning');
+    const recipeInfo = document.getElementById('recipeInfo');
 
-  // Recipe ID & auto-hide
-  const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
-  const rid = await CryptoHelper.digest(recipe, 'SHA-256');
-  document.getElementById('recipeInfo').innerText = 'Recipe ID ' + rid.slice(0, 8);
-    
-    //Saving data locally
+    pwSpan.innerText = password;
+    copyBtn.style.display = 'inline-block';
+
+    diversityWarn.style.display = 'none';
+    diversityWarn.innerText = '';
+
+    // Check diversity if required
+    if (policyOn && !generator.isDiverse(password)) {
+      diversityWarn.innerText = "⚠️ Password lacks full character diversity.";
+      diversityWarn.style.display = 'block';
+      setTimeout(() => (diversityWarn.style.display = 'none'), 6000);
+    }
+
+    // Build recipe ID
+    const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
+    const rid = await CryptoHelper.digest(recipe, 'SHA-256');
+    recipeInfo.innerText = 'Recipe ID ' + rid.slice(0, 8);
+
+    // Save to local storage
     const recipeData = {
       id: rid.slice(0, 8),
       site: nsite,
@@ -209,20 +218,49 @@ async function generate() {
       compatMode,
       date: new Date().toISOString()
     };
-
     await localforage.setItem(recipeData.id, recipeData);
-    updateHistoryList(); // refresh list after saving
+    updateHistoryList();
 
-  clearTimeout(window.hideTimer);
-  window.hideTimer = setTimeout(() => (pwSpan.innerText = '•••••••• (hidden)'), 30000);
-
-  document.getElementById('explainBox').style.display = 'none';
+    // Auto-hide password after 30s
+    clearTimeout(window.hideTimer);
+    window.hideTimer = setTimeout(() => {
+      pwSpan.innerText = '•••••••• (hidden)';
+    }, 30000);
+  } catch (e) {
+    resetUI({ showError: 'Error: ' + e.message, clearRecipe: true });
+  }
 }
+
 
 
 /* ==========================================================================
    UI UTILITIES
    ========================================================================== */
+
+function resetUI({ clearPassword = false, clearRecipe = false, showError = '' } = {}) {
+  const resultDiv = document.getElementById('result');
+  const pwSpan = document.getElementById('password');
+  const recipeInfo = document.getElementById('recipeInfo');
+  const diversityWarn = document.getElementById('diversityWarning');
+  const copyBtn = document.getElementById('copyBtn');
+  const explainBox = document.getElementById('explainBox');
+
+  resultDiv.style.display = 'block';
+  diversityWarn.style.display = 'none';
+  explainBox.style.display = 'none';
+
+  if (clearPassword) pwSpan.innerText = showError || '';
+  if (clearRecipe) recipeInfo.innerText = '';
+  if (showError) {
+    pwSpan.innerText = `⚠️ ${showError}`;
+    pwSpan.style.color = '#d33';
+    copyBtn.style.display = 'none';
+  } else {
+    pwSpan.style.color = '';
+    copyBtn.style.display = 'inline-block';
+  }
+}
+
 
 function initToggleExclusivity() {
   const policyToggle = document.getElementById('policyToggle');
