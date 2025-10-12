@@ -12,9 +12,77 @@ input,select,button{width:100%;padding:.8rem;margin-top:.3rem;font-family:inheri
 button{background:#222;color:#fff;cursor:pointer;margin-top:1.5rem}
 button:hover{background:#444}
 #result{margin-top:2rem;padding:1rem;background:#fff;border:1px solid #ccc;border-radius:5px;text-align:center;word-break:break-word;font-size:1.2rem;position:relative}
+
 #copyBtn{margin-top:.5rem;font-size:.9rem;width:auto;padding:.5rem 1rem}
 small{color:#555}
 details{margin-top:1rem}
+
+.toggle-row {
+  display: flex;
+  align-items: center;          /* vertical centering */
+  gap: 0.6rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+/* --- Toggle --- */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;               /* prevent squishing */
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #fff;
+  border-radius: 50%;
+  transition: 0.3s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* Checked = dark mode aesthetic */
+input:checked + .slider {
+  background-color: #111; /* black */
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+/* Label text alignment fix */
+.switch-label {
+  font-weight: bold;
+  color: #111;
+  user-select: none;
+  transform: translateY(1px);  /* subtle vertical nudge to center visually */
+}
+
+
 </style>
 </head>
 <body>
@@ -43,18 +111,26 @@ details{margin-top:1rem}
 </select>
 
 <label>Characters to Use from Result:</label>
-<input type="number" id="length" value="16" min="4" max="50">
+<input type="number" id="length" value="16" min="8" max="50">
 
 <label>Optional Suffix:</label>
 <input id="suffix" placeholder="e.g. !2025">
 
-<label><input type="checkbox" id="policyToggle" checked> Enforce deterministic character policy (A-Z a-z 0-9 symbol)</label>
+    <div class="toggle-row">
+      <label class="switch">
+        <input type="checkbox" id="policyToggle" checked>
+        <span class="slider"></span>
+      </label>
+      <label for="policyToggle" class="switch-label">Include upper, lower, digit & symbol</label>
+    </div>
+
 
 <button onclick="generate()">Generate Password</button>
 <div id="result" style="display:none;">
   <span id="password"></span><br>
   <button id="copyBtn" onclick="copyToClipboard()">Copy</button><br>
   <small id="recipeInfo"></small><br>
+  <small id="diversityWarning" style="display:none; color:#d33; font-weight:bold;"></small><br>
   <button id="explainBtn" onclick="explainPassword()">🔍 Explain My Password</button>
   <div id="explainBox" style="display:none;text-align:left;margin-top:1rem;font-size:.9rem;white-space:pre-wrap;background:#fafafa;border:1px dashed #ccc;padding:.5rem;border-radius:5px;"></div>
 </div>
@@ -80,39 +156,103 @@ async function pbkdf2(pass,salt,iters=100000,len=32){const e=new TextEncoder();c
 async function argon2Hash(pass,salt,memMB=64){const o={pass,salt,time:3,mem:memMB*1024,parallelism:1,hashLen:32,type:argon2.ArgonType.Argon2id};const {hashHex}=await argon2.hash(o);return hashHex}
 async function scryptHash(pass,salt,N=16384){const e=new TextEncoder();const dk=await scrypt.scrypt(e.encode(pass),e.encode(salt),N,8,1,32);return Array.from(dk).map(b=>b.toString(16).padStart(2,'0')).join('')}
 async function digestHex(input,algo='SHA-256'){const e=new TextEncoder();const d=e.encode(input);const h=await crypto.subtle.digest(algo,d);return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('')}
-function mapToPassword(hex,len=16,policyOn=true){const bytes=hexToBytes(hex);let charset=lowers+uppers+digits+symbols;let pwd='';for(let i=0;i<len;i++){pwd+=charset[bytes[i%bytes.length]%charset.length]}
-if(!policyOn)return pwd;
-// deterministic category enforcement
-const arr=pwd.split('');const cats=[uppers,lowers,digits,symbols];
-cats.forEach((set,idx)=>{const pos=bytes[idx+4]%arr.length;arr[pos]=set[bytes[idx]%set.length]});return arr.join('')}
-async function generate(){
- const site=document.getElementById('website').value.trim();
- const secret=document.getElementById('secret').value.trim();
- const counter=document.getElementById('counter').value.trim()||'0';
- const algo=document.getElementById('algorithm').value;
- const suffix=document.getElementById('suffix').value||'';
- const length=parseInt(document.getElementById('length').value,10);
- const policyOn=document.getElementById('policyToggle').checked;
- const resultDiv=document.getElementById('result');const pwSpan=document.getElementById('password');
- if(!site||!secret){resultDiv.style.display='block';pwSpan.innerText='Please enter website and secret.';return;}
- const nsite=normalizeSite(site);const combined=`${nsite}|${secret}|${counter}`;
- let hex;
- try{
-   if(algo==='PBKDF2-SHA256')hex=await pbkdf2(secret,combined,parseInt(document.getElementById('iterations').value));
-   else if(algo==='Argon2id')hex=await argon2Hash(secret,combined,parseInt(document.getElementById('argonMem').value));
-   else if(algo==='scrypt')hex=await scryptHash(secret,combined,parseInt(document.getElementById('scryptN').value));
-   else hex=await digestHex(combined,algo);
-   const pwd=mapToPassword(hex,length,policyOn)+suffix;
-   resultDiv.style.display='block';pwSpan.innerText=pwd;
-   // recipe ID checksum
-   const recipe=`${algo}|${nsite}|${counter}|${length}|${policyOn}`;
-   const rid=await digestHex(recipe,'SHA-256');document.getElementById('recipeInfo').innerText='Recipe ID '+rid.slice(0,8);
-   // auto-hide
-   clearTimeout(window.hideTimer);
-   window.hideTimer=setTimeout(()=>{pwSpan.innerText='•••••••• (hidden)';},30000);
-   document.getElementById('explainBox').style.display='none';
- }catch(e){pwSpan.innerText='Error '+e}
-}
+    
+    // --- Build and verify password ---
+    function mapToPassword(hex, len = 16, policyOn = true) {
+      const bytes = hexToBytes(hex);
+      let charset = lowers + uppers + digits + symbols;
+      let pwd = '';
+      for (let i = 0; i < len; i++) {
+        pwd += charset[bytes[i % bytes.length] % charset.length];
+      }
+
+      if (!policyOn) return pwd;
+
+      // deterministic category enforcement
+      const arr = pwd.split('');
+      const cats = [uppers, lowers, digits, symbols];
+      cats.forEach((set, idx) => {
+        const pos = bytes[idx + 4] % arr.length;
+        arr[pos] = set[bytes[idx] % set.length];
+      });
+
+      return arr.join('');
+    }
+
+
+
+    // --- Main generator ---
+    async function generate() {
+      const site = document.getElementById('website').value.trim();
+      const secret = document.getElementById('secret').value.trim();
+      const counter = document.getElementById('counter').value.trim() || '0';
+      const algo = document.getElementById('algorithm').value;
+      const suffix = document.getElementById('suffix').value || '';
+      const length = parseInt(document.getElementById('length').value, 10);
+      const policyOn = document.getElementById('policyToggle').checked;
+      const resultDiv = document.getElementById('result');
+      const pwSpan = document.getElementById('password');
+
+      if (!site || !secret) {
+        resultDiv.style.display = 'block';
+        pwSpan.innerText = 'Please enter website and secret.';
+        return;
+      }
+
+      const nsite = normalizeSite(site);
+      const combined = `${nsite}|${secret}|${counter}`;
+      let hex;
+
+      try {
+        if (algo === 'PBKDF2-SHA256')
+          hex = await pbkdf2(secret, combined, parseInt(document.getElementById('iterations').value));
+        else if (algo === 'Argon2id')
+          hex = await argon2Hash(secret, combined, parseInt(document.getElementById('argonMem').value));
+        else if (algo === 'scrypt')
+          hex = await scryptHash(secret, combined, parseInt(document.getElementById('scryptN').value));
+        else
+          hex = await digestHex(combined, algo);
+
+        // build password
+        const pwd = mapToPassword(hex, length, policyOn) + suffix;
+        resultDiv.style.display = 'block';
+        pwSpan.innerText = pwd;
+
+        // The diversity warning logic
+        const diversityWarn = document.getElementById('diversityWarning');
+        diversityWarn.style.display = 'none';
+        diversityWarn.innerText = '';
+
+        if (policyOn) {
+          const hasUpper = /[A-Z]/.test(pwd);
+          const hasLower = /[a-z]/.test(pwd);
+          const hasDigit = /\d/.test(pwd);
+          const hasSymbol = /[^A-Za-z0-9]/.test(pwd);
+
+          if (!(hasUpper && hasLower && hasDigit && hasSymbol)) {
+            diversityWarn.innerText =
+              "⚠️ Password lacks full character diversity. Try increasing 'Characters to Use'.";
+            diversityWarn.style.display = 'block';
+            setTimeout(() => { diversityWarn.style.display = 'none'; }, 8000);
+          }
+        }
+
+        // checksum + auto-hide
+        const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}`;
+        const rid = await digestHex(recipe, 'SHA-256');
+        document.getElementById('recipeInfo').innerText = 'Recipe ID ' + rid.slice(0, 8);
+
+        clearTimeout(window.hideTimer);
+        window.hideTimer = setTimeout(() => {
+          pwSpan.innerText = '•••••••• (hidden)';
+        }, 30000);
+
+        document.getElementById('explainBox').style.display = 'none';
+      } catch (e) {
+        pwSpan.innerText = 'Error ' + e;
+      }
+    }
+
 function copyToClipboard(){const t=document.getElementById('password').innerText;if(!t)return;navigator.clipboard.writeText(t).then(()=>{const b=document.getElementById('copyBtn');const o=b.innerText;b.innerText='Copied!';setTimeout(()=>b.innerText=o,2000)})}
 async function explainPassword(){
  const site=document.getElementById('website').value.trim();
