@@ -49,10 +49,14 @@ button:hover {
   word-break: break-word;
   font-size: 1.2rem;
   position: relative;
+  overflow: visible;
+  max-height: none;
 }
 
 #copyBtn {
-  margin-top: 0.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
   font-size: 0.9rem;
   width: auto;
   padding: 0.5rem 1rem;
@@ -365,7 +369,7 @@ input:checked + .slider:before {
 
 /* Subtle success animation (used when "Copied!" triggers) */
 #copyBtn.copied {
-  background: #1b5e20; /* gentle green */
+  background: #1b5e20;
   color: #fff;
   box-shadow: 0 3px 8px rgba(27, 94, 32, 0.4);
 }
@@ -378,11 +382,15 @@ input:checked + .slider:before {
 .result-hidden {
   max-height: 0;
   opacity: 0;
+  transform: translateY(-5px);
+  pointer-events: none;
 }
 
 .result-visible {
-  max-height: 300px; /* adjust depending on your layout */
+  max-height: 300px;
   opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
 }
 
 .info-msg {
