@@ -16,6 +16,11 @@ localforage.config({
   description: 'Stores recipe metadata for deterministic password generator'
 });
 
+const stores = {
+  history: localforage.createInstance({ storeName: 'history' }),
+  registry: localforage.createInstance({ storeName: 'registry' })
+};
+
 
 /* ==========================================================================
    CLASS: CryptoHelper — Static cryptography utilities
@@ -223,11 +228,40 @@ async function generate() {
       const resultDiv = document.getElementById('result');
       resultDiv.classList.remove('result-hidden');
       resultDiv.classList.add('result-visible');
+      
+      // Build recipe ID
+      const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
+      const rid = await CryptoHelper.digest(recipe, 'SHA-256');
+      recipeInfo.innerText = 'Recipe ID ' + rid.slice(0, 8);
 
-    // Build recipe ID
-    const recipe = `${algo}|${nsite}|${counter}|${length}|${policyOn}|${compatMode}`;
-    const rid = await CryptoHelper.digest(recipe, 'SHA-256');
-    recipeInfo.innerText = 'Recipe ID ' + rid.slice(0, 8);
+      // 🔍 Fetch registry entry first (fix for undefined)
+      const registryEntry = await stores.registry.getItem(nsite);
+      const registryMsg = document.getElementById('registryMessage');
+      clearTimeout(window.registryFadeTimer);
+
+      // Always reset visibility cleanly
+      registryMsg.style.opacity = '1';
+      registryMsg.style.display = 'none';
+      registryMsg.innerText = '';
+
+      // Now safely check and show message
+      if (registryEntry) {
+        const existing = registryEntry.versions.find(v => v.id === rid.slice(0, 8));
+        if (existing) {
+          registryMsg.innerText = `💡 You’ve generated this recipe before (v${existing.version}, ${new Date(existing.date).toLocaleDateString()}).`;
+          registryMsg.style.opacity = '1';
+          registryMsg.style.transition = 'none';
+          registryMsg.offsetHeight; // force reflow
+          registryMsg.style.transition = 'opacity 1s ease';
+          registryMsg.style.display = 'block';
+
+          // Auto-fade after 10 s
+          window.registryFadeTimer = setTimeout(() => {
+            registryMsg.style.opacity = '0';
+            setTimeout(() => (registryMsg.style.display = 'none'), 1000);
+          }, 10000);
+        }
+      }
 
     // Save to local storage
     const recipeData = {
@@ -241,6 +275,24 @@ async function generate() {
       date: new Date().toISOString()
     };
     await localforage.setItem(recipeData.id, recipeData);
+      
+      // Update Registry (persistent version tracking)
+      const existing = await stores.registry.getItem(nsite);
+      if (!existing) {
+        // First ever recipe for this site
+        recipeData.version = 1;
+        await stores.registry.setItem(nsite, { site: nsite, versions: [recipeData] });
+      } else {
+        // Check if same recipe ID already exists
+        const alreadyExists = existing.versions.some(v => v.id === recipeData.id);
+        if (!alreadyExists) {
+          const newVersion = existing.versions.length + 1;
+          recipeData.version = newVersion;
+          existing.versions.push(recipeData);
+          await stores.registry.setItem(nsite, existing);
+        }
+      }
+      
     updateHistoryList();
 
     // Auto-hide password after 30s

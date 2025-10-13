@@ -384,3 +384,7 @@ input:checked + .slider:before {
   max-height: 300px; /* adjust depending on your layout */
   opacity: 1;
 }
+
+.info-msg {
+  transition: opacity 1s ease;
+}
