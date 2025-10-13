@@ -15,13 +15,20 @@
   <label>Website or App Name:</label>
   <input id="website" placeholder="e.g. facebook.com">
 
-  <label>Your Secret / Master Phrase:</label>
+      <label for="master-key">Your Secret / Master Phrase:
+          <span class="info-tip" data-tip="This is your master phrase/key, remember it and keep it secret! We don't Store it here. ">?</span>
+      </label>
   <input id="secret" placeholder="e.g. ChottoMate!42">
 
-  <label>Version Counter (for rotation):</label>
+      <label for="counter">Version Counter (for rotation):
+          <span class="info-tip" data-tip="Used when generating multiple passwords for the same site, increment to get a new one.">?</span>
+      </label>
   <input type="number" id="counter" value="0" min="0">
 
-  <label>Algorithm:</label>
+
+      <label for="algo-label">Algorithm:
+          <span class="info-tip" data-tip="The cryptographic method used to derive your password.">?</span>
+      </label>
   <select id="algorithm">
     <optgroup label="Secure (Recommended)">
       <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
@@ -34,7 +41,7 @@
     </optgroup>
   </select>
 
-  <label>Characters to Use from Result:</label>
+  <label>Character length</label>
   <input type="number" id="length" value="16" min="8" max="50">
 
       <!-- Character Policy Toggle -->

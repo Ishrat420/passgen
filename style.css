@@ -396,3 +396,56 @@ input:checked + .slider:before {
 .info-msg {
   transition: opacity 1s ease;
 }
+
+
+.info-tip {
+  display: inline-block;
+  margin-left: 6px;
+  background: #333;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: bold;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  text-align: center;
+  line-height: 16px;
+  cursor: pointer;
+  position: relative;
+}
+
+.info-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 125%; /* show above the icon */
+  left: 50%;
+  transform: translateX(-50%);
+  background: #222;
+  color: #fff;
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-radius: 5px;
+  white-space: normal;
+  width: max-content;
+  max-width: 250px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 100;
+}
+
+.info-tip:hover::after,
+.info-tip:focus::after {
+  opacity: 1;
+}
+
+/* Mobile compatibility, show tooltip on tap */
+@media (hover: none) {
+  .info-tip::after {
+    bottom: auto;
+    top: 125%;
+  }
+  .info-tip:active::after {
+    opacity: 1;
+  }
+}
