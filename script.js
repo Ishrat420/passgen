@@ -286,9 +286,13 @@ async function generate() {
         const existing = versions.find(v => v.id === rid.slice(0, 8));
 
         if (existing) {
+          const lastCounter = existing.counter || '0';
+
             registryMsg.innerHTML = `
-              💡 You’ve generated this recipe before (v${existing.version}, ${new Date(existing.date).toLocaleDateString()}). 
-              <br><small>Latest saved version for ${nsite}: v${latestVersion.version} </small>`;
+              💡 You’ve generated this recipe before, Latest saved version for <b>${nsite}</b>: 
+                 (<b>v${latestVersion.version}</b>, ${new Date(existing.date).toLocaleDateString()}).
+                 <br><small>Last used Counter: <code>${lastCounter}</code></small>
+                 <br><small class="highlight-hint">Are you using a different Master Key?</small>`;
         } else {
           // New recipe → compare against latest known version // add counter as well here 
           registryMsg.innerText = `🆕 This is a new recipe version (v${latestVersion.version + 1}) for ${nsite}.`;

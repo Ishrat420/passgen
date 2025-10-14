@@ -483,3 +483,33 @@ input:checked + .slider:before {
   background: #9a0007;
 }
 
+#registryMessage {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: #fafafa;
+  border-left: 3px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+#registryMessage small {
+  color: #555;
+  display: block;
+  margin-top: 0.2rem;
+}
+
+#registryMessage code {
+  background: #f4f4f4;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.highlight-hint {
+  background: rgba(255, 235, 59, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  color: #444;
+}
