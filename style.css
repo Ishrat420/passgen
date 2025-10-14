@@ -449,3 +449,37 @@ input:checked + .slider:before {
     opacity: 1;
   }
 }
+
+#appVersion {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 2rem;
+}
+
+#reset-options{
+  margin-top: 2rem;
+  border-top: 1px solid #ccc;
+  padding-top: 1rem;
+  text-align: center;
+}
+
+.danger-btn {
+  background: #b71c1c;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.danger-btn:hover {
+  background: #d32f2f;
+}
+
+.danger-btn:active {
+  background: #9a0007;
+}
+

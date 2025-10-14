@@ -82,8 +82,13 @@
     <label>PBKDF2 Iterations:</label><input type="number" id="iterations" value="100000" min="10000">
     <label>Argon2 Memory (MB):</label><input type="number" id="argonMem" value="64" min="8">
     <label>scrypt N (CPU cost):</label><input type="number" id="scryptN" value="16384" min="1024">
+    <button id="resetAppBtn" class="danger-btn">Reset All App Data</button>
+    <small style="display:block;margin-top:4px;color:#666;">
+    Clears all stored recipes, registry history, and preferences.
+    </small>
   </details>
   <hr>
+
   <details id="history" open>
     <summary>🔐 Saved Recipes</summary>
 
@@ -109,5 +114,6 @@
   <script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
   <script src="script.js"></script>
+  <footer id="appVersion">PasswordGen v2.0 — 100% Local, No Cloud</footer>
 </body>
 </html>

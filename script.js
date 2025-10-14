@@ -161,6 +161,25 @@ class PasswordGenerator {
    UI CONTROLLER LOGIC
    ========================================================================== */
 
+
+document.getElementById('resetAppBtn').addEventListener('click', async () => {
+  if (!confirm('⚠️ This will delete ALL stored recipes and registry data. Are you sure?')) return;
+
+  try {
+    await Promise.all([
+      localforage.clear(),
+      stores.history.clear(),
+      stores.registry.clear()
+    ]);
+
+    updateHistoryList();
+    alert('✅ All app data has been cleared successfully!');
+  } catch (err) {
+    alert('❌ Failed to reset data: ' + err.message);
+  }
+});
+
+
 document.addEventListener('DOMContentLoaded', () => {
     initToggleExclusivity();
     const reactiveFields = [
