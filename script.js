@@ -81,16 +81,22 @@ class PasswordGenerator {
     const nsite = this.normalizeSite(site);
     const combined = `${nsite}|${secret}|${counter}`;
 
+     if (/[|]/.test(site) || /[|]/.test(secret)) {
+     throw new Error('Inputs may not contain "|" character');}
+
     let hex;
     switch (this.algorithm) {
       case 'PBKDF2-SHA256':
-        hex = await CryptoHelper.pbkdf2(secret, combined, this.getValue('iterations', 100000));
+        const iters = parseInt(this.getValue('iterations', 100000), 10) || 100000;
+        hex = await CryptoHelper.pbkdf2(secret, combined, iters);
         break;
       case 'Argon2id':
-        hex = await CryptoHelper.argon2(secret, combined, this.getValue('argonMem', 64));
+        const memMB = parseInt(this.getValue('argonMem', 64), 10) || 64;
+        hex = await CryptoHelper.argon2(secret, combined, memMB);
         break;
       case 'scrypt':
-        hex = await CryptoHelper.scrypt(secret, combined, this.getValue('scryptN', 16384));
+        const N = parseInt(this.getValue('scryptN', 16384), 10) || 16384;
+        hex = await CryptoHelper.scrypt(secret, combined, N);
         break;
       default:
         hex = await CryptoHelper.digest(combined, this.algorithm);
@@ -162,30 +168,48 @@ class PasswordGenerator {
    ========================================================================== */
 
 
-document.getElementById('resetAppBtn').addEventListener('click', async () => {
-  if (!confirm('⚠️ This will delete ALL stored recipes and registry data. Are you sure?')) return;
-
-  try {
-    await Promise.all([
-      localforage.clear(),
-      stores.history.clear(),
-      stores.registry.clear()
-    ]);
-
-    updateHistoryList();
-    alert('✅ All app data has been cleared successfully!');
-  } catch (err) {
-    alert('❌ Failed to reset data: ' + err.message);
-  }
-});
-
-
 document.addEventListener('DOMContentLoaded', () => {
-    initToggleExclusivity();
-    const reactiveFields = [
+  // --- Initialize toggle exclusivity ---
+  initToggleExclusivity();
+
+  // --- Attach Reset App Data button ---
+  const resetBtn = document.getElementById('resetAppBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', async () => {
+      if (!confirm('⚠️ This will delete ALL stored recipes and registry data. Are you sure?')) return;
+
+      try {
+        await Promise.all([
+          localforage.clear(),
+          stores.history.clear(),
+          stores.registry.clear()
+        ]);
+
+        updateHistoryList();
+
+        // Hide any lingering version/info messages
+        const registryMsg = document.getElementById('registryMessage');
+        if (registryMsg) registryMsg.style.display = 'none';
+
+        alert('✅ All app data has been cleared successfully!');
+      } catch (err) {
+        alert('❌ Failed to reset data: ' + err.message);
+      }
+    });
+  }
+
+  // --- Reactive fields: hide result box when changed ---
+  const reactiveFields = [
     'website', 'secret', 'algorithm', 'counter', 'length',
     'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN'
   ];
+
+  const resultDiv = document.getElementById('result');
+  function hideResultBox() {
+    if (!resultDiv) return;
+    resultDiv.classList.remove('result-visible');
+    resultDiv.classList.add('result-hidden');
+  }
 
   reactiveFields.forEach(id => {
     const el = document.getElementById(id);
@@ -193,13 +217,6 @@ document.addEventListener('DOMContentLoaded', () => {
     el.addEventListener('input', hideResultBox);
     el.addEventListener('change', hideResultBox);
   });
-
-  function hideResultBox() {
-    const resultDiv = document.getElementById('result');
-    if (!resultDiv) return;
-    resultDiv.classList.remove('result-visible');
-    resultDiv.classList.add('result-hidden');
-  }
 });
 
 
@@ -270,10 +287,10 @@ async function generate() {
 
         if (existing) {
             registryMsg.innerHTML = `
-              💡 You’ve generated this recipe before (count${existing.version}, ${new Date(existing.date).toLocaleDateString()}).
-              <br><small>Latest saved version for ${nsite}: count${latestVersion.version} </small>`;
+              💡 You’ve generated this recipe before (v${existing.version}, ${new Date(existing.date).toLocaleDateString()}). 
+              <br><small>Latest saved version for ${nsite}: v${latestVersion.version} </small>`;
         } else {
-          // New recipe → compare against latest known version
+          // New recipe → compare against latest known version // add counter as well here 
           registryMsg.innerText = `🆕 This is a new recipe version (v${latestVersion.version + 1}) for ${nsite}.`;
         }
 
