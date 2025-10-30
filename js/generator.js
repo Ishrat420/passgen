@@ -1,5 +1,9 @@
 import { CryptoHelper } from './crypto.js';
 
+const DEFAULT_LENGTH = 16;
+const MIN_LENGTH = 8;
+const MAX_LENGTH = 50;
+
 const CHARSETS = {
   lowers: 'abcdefghijklmnopqrstuvwxyz',
   uppers: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
@@ -16,7 +20,15 @@ export class PasswordGenerator {
     parameters = {}
   } = {}) {
     this.algorithm = algorithm;
-    this.length = length;
+    // Defensive guard: clamp to supported bounds and fall back to a safe default
+    // when callers provide invalid lengths.
+    const numericLength = Number(length);
+    if (Number.isInteger(numericLength)) {
+      this.length = Math.min(MAX_LENGTH, Math.max(MIN_LENGTH, numericLength));
+    } else {
+      // Fall back to a safe default when callers provide invalid lengths.
+      this.length = DEFAULT_LENGTH;
+    }
     this.policyOn = policyOn;
     this.compatMode = compatMode;
     this.parameters = {
