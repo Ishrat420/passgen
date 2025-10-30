@@ -65,15 +65,15 @@
       <small id="compatHint" class="hint" style="display:none;">Disabled while Character Policy is on</small>
 
 
-  <button onclick="generate()">Generate Password</button>
+  <button id="generateBtn" type="button">Generate Password</button>
   <small id="registryMessage" class="info-msg" style="display:none; color:#777; margin-top:6px; font-style:italic;"></small>
 
   <div id="result" style="display:none;">
     <span id="password"></span><br>
-    <button id="copyBtn" onclick="copyToClipboard()">Copy</button><br>
+    <button id="copyBtn" type="button">Copy</button><br>
     <small id="recipeInfo"></small><br>
     <small id="diversityWarning" style="display:none; color:#d33; font-weight:bold;"></small><br>
-    <button id="explainBtn" onclick="explainPassword()">🔍 Explain My Password</button>
+    <button id="explainBtn" type="button">🔍 Explain My Password</button>
     <div id="explainBox"></div>
   </div>
 
@@ -113,7 +113,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
-  <script src="script.js"></script>
+  <script type="module" src="js/ui.js"></script>
   <footer id="appVersion">PasswordGen v2.0 — 100% Local, No Cloud</footer>
 </body>
 </html>
