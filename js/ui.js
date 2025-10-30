@@ -228,7 +228,7 @@ function updateRegistryMessage(site, previousRegistry, registryResult) {
   clearTimeout(registryFadeTimer);
   messageEl.style.opacity = '1';
   messageEl.style.display = 'none';
-  messageEl.innerText = '';
+  messageEl.textContent = '';
 
   if (!previousRegistry) return;
 
@@ -237,13 +237,42 @@ function updateRegistryMessage(site, previousRegistry, registryResult) {
 
   if (matchedVersion) {
     const lastCounter = matchedVersion.counter || '0';
-    messageEl.innerHTML = `
-      💡 You’ve generated this recipe before. Latest saved version for <b>${site}</b>:
-      (<b>v${latestVersion.version}</b>, ${new Date(matchedVersion.date).toLocaleDateString()}).
-      <br><small>Last used Counter: <code>${lastCounter}</code></small>
-      <br><small class="highlight-hint">Are you using a different Master Key?</small>`;
+    messageEl.append(document.createTextNode('💡 You’ve generated this recipe before. Latest saved version for '));
+
+    const siteStrong = document.createElement('b');
+    siteStrong.textContent = site;
+    messageEl.appendChild(siteStrong);
+
+    messageEl.append(document.createTextNode(': ('));
+
+    const versionStrong = document.createElement('b');
+    versionStrong.textContent = `v${latestVersion.version}`;
+    messageEl.appendChild(versionStrong);
+
+    const formattedDate = new Date(matchedVersion.date).toLocaleDateString();
+    messageEl.append(document.createTextNode(`, ${formattedDate}).`));
+
+    messageEl.appendChild(document.createElement('br'));
+
+    const counterInfo = document.createElement('small');
+    counterInfo.textContent = 'Last used Counter: ';
+    const counterCode = document.createElement('code');
+    counterCode.textContent = lastCounter;
+    counterInfo.appendChild(counterCode);
+    messageEl.appendChild(counterInfo);
+
+    messageEl.appendChild(document.createElement('br'));
+
+    const hint = document.createElement('small');
+    hint.classList.add('highlight-hint');
+    hint.textContent = 'Are you using a different Master Key?';
+    messageEl.appendChild(hint);
   } else {
-    messageEl.innerText = `🆕 This is a new recipe version (v${latestVersion.version + 1}) for ${site}.`;
+    messageEl.textContent = '🆕 This is a new recipe version (v' +
+      (latestVersion.version + 1) +
+      ') for ' +
+      site +
+      '.';
   }
 
   messageEl.style.display = 'block';
@@ -264,20 +293,27 @@ async function refreshHistoryList(filter = '') {
     : recipes;
 
   if (!filtered.length) {
-    list.innerHTML = `<li style="color:${filter ? '#999' : '#555'};">${filter ? 'No matching results.' : 'No recipes saved yet.'}</li>`;
+    const emptyItem = document.createElement('li');
+    emptyItem.style.color = filter ? '#999' : '#555';
+    emptyItem.textContent = filter ? 'No matching results.' : 'No recipes saved yet.';
+    list.appendChild(emptyItem);
     updateStorageInfo();
     return;
   }
 
   filtered.forEach(recipe => {
     const li = document.createElement('li');
-    li.innerHTML = `
-      <strong>${recipe.site}</strong> — ${recipe.algorithm} <br>
-      <small>
-        ID: ${recipe.id} | Counter: ${recipe.counter} | ${recipe.length} chars |
-        ${new Date(recipe.date).toLocaleString()}
-      </small>
-    `;
+    const title = document.createElement('strong');
+    title.textContent = recipe.site;
+    li.appendChild(title);
+
+    li.append(document.createTextNode(` — ${recipe.algorithm} `));
+    li.appendChild(document.createElement('br'));
+
+    const details = document.createElement('small');
+    details.textContent = `ID: ${recipe.id} | Counter: ${recipe.counter} | ${recipe.length} chars | ${new Date(recipe.date).toLocaleString()}`;
+    li.appendChild(details);
+
     list.appendChild(li);
   });
 
