@@ -41,7 +41,8 @@ async function handleGenerate() {
   const secret = document.getElementById('secret').value.trim();
   const counter = document.getElementById('counter').value.trim() || '0';
   const algorithm = document.getElementById('algorithm').value;
-  const length = parseInt(document.getElementById('length').value, 10);
+  const lengthInput = document.getElementById('length').value;
+  const length = Number(lengthInput);
   const policyOn = document.getElementById('policyToggle').checked;
   const compatMode = document.getElementById('compatToggle').checked;
   const iterations = parseInt(document.getElementById('iterations').value, 10);
@@ -52,6 +53,16 @@ async function handleGenerate() {
 
   if (!site || !secret) {
     resetUI({ showError: 'Please enter website and secret.', clearRecipe: true });
+    return;
+  }
+
+  const MIN_LENGTH = 8;
+  const MAX_LENGTH = 50;
+  if (!Number.isInteger(length) || length < MIN_LENGTH || length > MAX_LENGTH) {
+    resetUI({
+      showError: `Password length must be an integer between ${MIN_LENGTH} and ${MAX_LENGTH}.`,
+      clearRecipe: true
+    });
     return;
   }
 
@@ -76,11 +87,13 @@ async function handleGenerate() {
     handleDiversityWarning(generator, password);
     showResultBox();
 
+    const effectiveLength = generator.length;
+
     const { short: recipeId } = await PasswordGenerator.computeRecipeId({
       algorithm,
       site: normalizedSite,
       counter,
-      length,
+      length: effectiveLength,
       policyOn,
       compatMode
     });
@@ -92,7 +105,7 @@ async function handleGenerate() {
       id: recipeId,
       site: normalizedSite,
       algorithm,
-      length,
+      length: effectiveLength,
       counter,
       policyOn,
       compatMode,
