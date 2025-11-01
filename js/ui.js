@@ -41,7 +41,10 @@ function initEventHandlers() {
 async function handleGenerate() {
   const site = document.getElementById('website').value.trim();
   const secret = document.getElementById('secret').value.trim();
-  const counter = document.getElementById('counter').value.trim() || '0';
+  const counterInput = document.getElementById('counter');
+  const counterRaw = counterInput.value.trim() || '0';
+  const normalizedCounter = PasswordGenerator.normalizeCounter(counterRaw);
+  counterInput.value = normalizedCounter;
   const algorithm = document.getElementById('algorithm').value;
   const lengthInput = document.getElementById('length').value;
   const length = Number(lengthInput);
@@ -77,7 +80,7 @@ async function handleGenerate() {
       parameters: { iterations, argonMem, scryptN }
     });
 
-    const { password, normalizedSite } = await generator.generate({ site, secret, counter });
+    const { password, normalizedSite } = await generator.generate({ site, secret, counter: normalizedCounter });
 
     lastGeneratedPassword = password;
 
@@ -91,24 +94,25 @@ async function handleGenerate() {
 
     const effectiveLength = generator.length;
 
-    const { short: recipeId } = await PasswordGenerator.computeRecipeId({
+    const { digest: recipeDigest, short: recipeShort } = await PasswordGenerator.computeRecipeId({
       algorithm,
       site: normalizedSite,
-      counter,
+      counter: normalizedCounter,
       length: effectiveLength,
       policyOn,
       compatMode
     });
 
-    document.getElementById('recipeInfo').innerText = 'Recipe ID ' + recipeId;
+    document.getElementById('recipeInfo').innerText = 'Recipe ID ' + recipeShort;
 
     const existingRegistry = await getRegistryEntry(normalizedSite);
     const recipeEntry = {
-      id: recipeId,
+      id: recipeDigest,
+      shortId: recipeShort,
       site: normalizedSite,
       algorithm,
       length: effectiveLength,
-      counter,
+      counter: normalizedCounter,
       policyOn,
       compatMode,
       date: new Date().toISOString()
@@ -325,8 +329,9 @@ async function refreshHistoryList(filter = '') {
     li.append(document.createTextNode(` — ${recipe.algorithm} `));
     li.appendChild(document.createElement('br'));
 
+    const shortId = recipe.shortId || (recipe.id ? recipe.id.slice(0, 8) : 'unknown');
     const details = document.createElement('small');
-    details.textContent = `ID: ${recipe.id} | Counter: ${recipe.counter} | ${recipe.length} chars | ${new Date(recipe.date).toLocaleString()}`;
+    details.textContent = `ID: ${shortId} | Counter: ${recipe.counter} | ${recipe.length} chars | ${new Date(recipe.date).toLocaleString()}`;
     li.appendChild(details);
 
     list.appendChild(li);
@@ -434,10 +439,11 @@ async function explainPassword() {
   const compatMode = document.getElementById('compatToggle').checked;
 
   const normalizedSite = PasswordGenerator.normalizeSite(site);
+  const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
   const { short: recipeId } = await PasswordGenerator.computeRecipeId({
     algorithm,
     site: normalizedSite,
-    counter,
+    counter: normalizedCounter,
     length,
     policyOn,
     compatMode
@@ -448,7 +454,7 @@ async function explainPassword() {
   box.textContent = [
     `Algorithm: ${algorithm}`,
     `Normalized site: ${normalizedSite}`,
-    `Counter: ${counter}`,
+    `Counter: ${normalizedCounter}`,
     `Length: ${length}`,
     `Deterministic policy: ${policyOn}`,
     `Compatibility mode: ${compatMode}`,

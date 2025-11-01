@@ -643,8 +643,26 @@ function clearCanvas(canvas) {
   }
 }
 
+let syncToastTimer = null;
+
+function showSyncToast(message, { tone = 'error', duration = 4000 } = {}) {
+  const toast = document.getElementById('syncToast');
+  if (!toast) return;
+
+  toast.textContent = message;
+  toast.classList.remove('sync-toast--success', 'sync-toast--error');
+  toast.classList.add(tone === 'success' ? 'sync-toast--success' : 'sync-toast--error');
+  toast.classList.add('sync-toast--visible');
+
+  clearTimeout(syncToastTimer);
+  syncToastTimer = setTimeout(() => {
+    toast.classList.remove('sync-toast--visible');
+  }, duration);
+}
+
 async function copyToClipboard(value, button) {
   if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+    showSyncToast('Clipboard access is unavailable. Please copy the payload manually.', { tone: 'error' });
     if (button) {
       const original = button.textContent;
       button.textContent = 'Copy unavailable';
@@ -667,6 +685,7 @@ async function copyToClipboard(value, button) {
       }, 2500);
     }
   } catch (error) {
+    showSyncToast('Failed to copy to clipboard. Please copy the payload manually.', { tone: 'error' });
     if (button) {
       const original = button.textContent;
       button.textContent = 'Copy failed';
