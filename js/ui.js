@@ -8,6 +8,7 @@ import {
   exportRecipes,
   getRegistryEntry
 } from './storage.js';
+import { initSyncUI } from './sync.js';
 
 let hideTimer = null;
 let registryFadeTimer = null;
@@ -19,6 +20,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setupReactiveFields();
   refreshHistoryList();
   updateStorageInfo();
+  initSyncUI({ refreshHistoryList, updateStorageInfo });
 });
 
 function initEventHandlers() {

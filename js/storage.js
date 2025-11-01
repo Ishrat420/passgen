@@ -99,3 +99,127 @@ export async function importRecipes(recipes = []) {
 export async function exportRecipes() {
   return fetchRecipes();
 }
+
+export async function exportRegistrySnapshot() {
+  const keys = await registryStore.keys();
+  const entries = [];
+
+  for (const key of keys) {
+    const entry = await registryStore.getItem(key);
+    if (!entry || !entry.site || !Array.isArray(entry.versions)) continue;
+
+    const site = typeof entry.site === 'string' ? entry.site.trim() : '';
+    if (!site) continue;
+
+    const sanitizedVersions = entry.versions
+      .filter(version => version && version.id)
+      .map((version, index) => ({
+        id: version.id,
+        site,
+        algorithm: version.algorithm,
+        length: version.length,
+        counter: version.counter,
+        policyOn: Boolean(version.policyOn),
+        compatMode: Boolean(version.compatMode),
+        date: version.date || new Date().toISOString(),
+        version: version.version || index + 1
+      }));
+
+    if (!sanitizedVersions.length) continue;
+
+    sanitizedVersions.sort((a, b) => a.version - b.version);
+
+    entries.push({
+      site,
+      versions: sanitizedVersions
+    });
+  }
+
+  entries.sort((a, b) => a.site.localeCompare(b.site));
+
+  return {
+    exportedAt: new Date().toISOString(),
+    sites: entries.length,
+    entries
+  };
+}
+
+export async function importRegistrySnapshot(snapshot = {}) {
+  const entries = Array.isArray(snapshot.entries) ? snapshot.entries : [];
+  let importedSites = 0;
+  let importedVersions = 0;
+
+  for (const entry of entries) {
+    if (!entry || !entry.site || !Array.isArray(entry.versions)) continue;
+
+    const site = String(entry.site).trim();
+    if (!site) continue;
+
+    const incomingVersions = entry.versions
+      .filter(version => version && version.id)
+      .map(version => ({
+        id: version.id,
+        site,
+        algorithm: version.algorithm,
+        length: version.length,
+        counter: version.counter,
+        policyOn: Boolean(version.policyOn),
+        compatMode: Boolean(version.compatMode),
+        date: version.date || new Date().toISOString(),
+        version: version.version
+      }));
+
+    if (!incomingVersions.length) continue;
+
+    const existing = await registryStore.getItem(site);
+
+    if (!existing) {
+      const normalized = [...incomingVersions]
+        .sort((a, b) => (a.version || 0) - (b.version || 0))
+        .map((version, index) => ({
+          ...version,
+          version: index + 1
+        }));
+
+      await registryStore.setItem(site, { site, versions: normalized });
+      await Promise.all(normalized.map(version => recipeStore.setItem(version.id, version)));
+
+      importedSites += 1;
+      importedVersions += normalized.length;
+      continue;
+    }
+
+    const merged = Array.isArray(existing.versions) ? [...existing.versions] : [];
+    let changed = false;
+
+    for (const version of incomingVersions) {
+      const alreadyExists = merged.some(existingVersion => existingVersion.id === version.id);
+      if (alreadyExists) continue;
+
+      const nextVersionNumber = version.version && version.version > 0
+        ? version.version
+        : merged.length + 1;
+
+      merged.push({
+        ...version,
+        version: nextVersionNumber
+      });
+      changed = true;
+      importedVersions += 1;
+    }
+
+    if (!changed) continue;
+
+    merged.sort((a, b) => a.version - b.version);
+    const reindexed = merged.map((version, index) => ({
+      ...version,
+      version: index + 1
+    }));
+
+    await registryStore.setItem(site, { site, versions: reindexed });
+    await Promise.all(reindexed.map(version => recipeStore.setItem(version.id, version)));
+    importedSites += 1;
+  }
+
+  return { importedSites, importedVersions };
+}
