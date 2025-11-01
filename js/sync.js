@@ -610,7 +610,11 @@ async function renderQrCode(canvas, value) {
     return;
   }
 
-  if (typeof QRCode === 'undefined' || typeof QRCode.toCanvas !== 'function') {
+  if (
+    typeof QRCode === 'undefined' ||
+    typeof QRCode.toCanvas !== 'function' ||
+    typeof QRCode.create !== 'function'
+  ) {
     const context = canvas.getContext('2d');
     if (context) {
       context.clearRect(0, 0, canvas.width || 220, canvas.height || 220);
@@ -620,15 +624,29 @@ async function renderQrCode(canvas, value) {
     return;
   }
 
+  const config = selectQrRenderConfig(value);
+
   return new Promise((resolve, reject) => {
     QRCode.toCanvas(
       canvas,
       value,
-      { width: 220, margin: 1, errorCorrectionLevel: 'M' },
+      {
+        margin: config.margin,
+        scale: config.scale,
+        errorCorrectionLevel: config.errorCorrectionLevel
+      },
       error => {
         if (error) {
           reject(error);
           return;
+        }
+        canvas.dataset.qrModules = String(config.moduleCount);
+        canvas.dataset.qrLevel = config.errorCorrectionLevel;
+        if (typeof canvas.setAttribute === 'function') {
+          canvas.setAttribute(
+            'aria-label',
+            `QR code with ${config.moduleCount}×${config.moduleCount} modules using ${config.errorCorrectionLevel}-level error correction`
+          );
         }
         resolve();
       }
@@ -636,10 +654,72 @@ async function renderQrCode(canvas, value) {
   });
 }
 
+function selectQrRenderConfig(value) {
+  const levels = ['Q', 'M', 'L'];
+  const maxDenseModules = 135;
+  const maxCanvasSize = 1024;
+  const configs = [];
+  let lastError = null;
+
+  for (const level of levels) {
+    try {
+      const qr = QRCode.create(value, { errorCorrectionLevel: level });
+      const moduleCount = qr.getModuleCount();
+      configs.push({ level, moduleCount });
+      if (moduleCount <= maxDenseModules) {
+        break;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!configs.length) {
+    if (lastError && /code length overflow/i.test(lastError.message)) {
+      throw new Error('Payload exceeds the maximum QR capacity. Copy the payload instead.');
+    }
+    throw lastError || new Error('Unable to encode payload.');
+  }
+
+  const selected =
+    configs.find(config => config.moduleCount <= maxDenseModules) || configs[configs.length - 1];
+
+  let margin = 6;
+  let preferredScale = 9;
+
+  if (selected.moduleCount > 150) {
+    margin = 8;
+    preferredScale = 6;
+  } else if (selected.moduleCount > 120) {
+    margin = 8;
+    preferredScale = 7;
+  } else if (selected.moduleCount > 90) {
+    preferredScale = 8;
+  }
+
+  const totalModules = selected.moduleCount + margin * 2;
+  const maxScale = Math.max(5, Math.floor(maxCanvasSize / totalModules));
+  const scale = Math.max(5, Math.min(preferredScale, maxScale));
+
+  return {
+    margin,
+    scale,
+    errorCorrectionLevel: selected.level,
+    moduleCount: selected.moduleCount
+  };
+}
+
 function clearCanvas(canvas) {
   const context = canvas.getContext('2d');
   if (context) {
     context.clearRect(0, 0, canvas.width || 220, canvas.height || 220);
+  }
+  if (canvas.dataset) {
+    delete canvas.dataset.qrModules;
+    delete canvas.dataset.qrLevel;
+  }
+  if (typeof canvas.removeAttribute === 'function') {
+    canvas.removeAttribute('aria-label');
   }
 }
 

@@ -419,7 +419,7 @@ input:checked + .slider:before {
 .sync-modal__dialog {
   background: #fff;
   color: #111;
-  width: min(480px, 100%);
+  width: min(960px, calc(100vw - 2rem));
   border-radius: 12px;
   padding: 1.5rem;
   position: relative;
@@ -533,13 +533,13 @@ input:checked + .slider:before {
 }
 
 .sync-qr {
-  width: 220px;
-  height: 220px;
+  display: block;
   align-self: center;
   border: 1px solid #ddd;
-  border-radius: 10px;
+  border-radius: 0;
   padding: 0.5rem;
   background: #fff;
+  image-rendering: pixelated;
 }
 
 .sync-session {
@@ -657,8 +657,8 @@ input:checked + .slider:before {
   }
 
   .sync-qr {
-    width: 200px;
-    height: 200px;
+    max-width: 100%;
+    height: auto;
   }
 }
 
