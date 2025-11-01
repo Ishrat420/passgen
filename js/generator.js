@@ -52,13 +52,35 @@ export class PasswordGenerator {
     return PasswordGenerator.normalizeSite(site);
   }
 
+  static normalizeCounter(counter) {
+    const raw = String(counter ?? '0').trim();
+    if (raw === '') return '0';
+
+    if (/^-?\d+$/.test(raw)) {
+      if (typeof BigInt === 'function') {
+        try {
+          return String(BigInt(raw));
+        } catch {
+          // Fall back to Number parsing below.
+        }
+      }
+
+      const parsed = parseInt(raw, 10);
+      if (Number.isNaN(parsed)) return raw.replace(/^0+(?=\d)/, '');
+      return String(parsed);
+    }
+
+    return raw;
+  }
+
   async generate({ site, secret, counter = '0' }) {
     if (/[|]/.test(site) || /[|]/.test(secret)) {
       throw new Error('Inputs may not contain "|" character');
     }
 
     const normalizedSite = PasswordGenerator.normalizeSite(site);
-    const combined = `${normalizedSite}|${secret}|${counter}`;
+    const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
+    const combined = `${normalizedSite}|${secret}|${normalizedCounter}`;
 
     let hex;
     switch (this.algorithm) {
@@ -82,7 +104,7 @@ export class PasswordGenerator {
     }
 
     const password = this.mapToPassword(hex);
-    return { password, normalizedSite, hex };
+    return { password, normalizedSite, hex, counter: normalizedCounter };
   }
 
   mapToPassword(hex) {
@@ -128,7 +150,8 @@ export class PasswordGenerator {
   }
 
   static buildRecipeSignature({ algorithm, site, counter, length, policyOn, compatMode }) {
-    return `${algorithm}|${site}|${counter}|${length}|${policyOn}|${compatMode}`;
+    const normalizedCounter = this.normalizeCounter(counter);
+    return `${algorithm}|${site}|${normalizedCounter}|${length}|${policyOn}|${compatMode}`;
   }
 
   static async computeRecipeId(details) {
