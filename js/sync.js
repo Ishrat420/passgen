@@ -624,7 +624,7 @@ async function renderQrCode(canvas, value) {
     QRCode.toCanvas(
       canvas,
       value,
-      { width: 256, margin: 4, errorCorrectionLevel: 'M' },
+      { width: 320, margin: 6, minScale: 5, errorCorrectionLevel: 'Q' },
       error => {
         if (error) {
           reject(error);

@@ -986,13 +986,15 @@
       const errorLevel = QRErrorCorrectLevel[level] ?? QRErrorCorrectLevel.M;
       const qr = createQRCode(String(text), errorLevel);
 
-      const rawMargin = opts.margin !== undefined ? Number(opts.margin) : 4;
-      const margin = Number.isFinite(rawMargin) && rawMargin >= 0 ? Math.floor(rawMargin) : 4;
+      const hasExplicitMargin = Object.prototype.hasOwnProperty.call(opts, 'margin');
+      const rawMargin = hasExplicitMargin ? Number(opts.margin) : 4;
+      const marginBase = Number.isFinite(rawMargin) && rawMargin >= 0 ? Math.floor(rawMargin) : 4;
+      const margin = hasExplicitMargin ? marginBase : Math.max(4, marginBase);
       const moduleCount = qr.getModuleCount();
 
-      const baseScale = opts.scale ? Number(opts.scale) : 0;
-      let scale = Number.isFinite(baseScale) && baseScale > 0 ? Math.floor(baseScale) : 0;
-      if (!scale) {
+      const hasExplicitScale = Number.isFinite(Number(opts.scale)) && Number(opts.scale) > 0;
+      let scale = hasExplicitScale ? Math.floor(Number(opts.scale)) : 0;
+      if (!hasExplicitScale) {
         const targetWidth = opts.width ? Number(opts.width) : 0;
         if (Number.isFinite(targetWidth) && targetWidth > 0) {
           scale = Math.floor(targetWidth / (moduleCount + margin * 2));
@@ -1002,14 +1004,26 @@
         scale = 4;
       }
 
+      const minScale = opts.minScale !== undefined ? Math.max(1, Math.floor(Number(opts.minScale))) : 4;
+      if (!hasExplicitScale) {
+        scale = Math.max(scale, minScale);
+      }
+
       const totalSize = (moduleCount + margin * 2) * scale;
       const quietZone = margin * scale;
 
-      resolvedCanvas.width = totalSize;
-      resolvedCanvas.height = totalSize;
+      const pixelRatioOption = opts.pixelRatio !== undefined ? Number(opts.pixelRatio) : (global.devicePixelRatio || 1);
+      const pixelRatio = Number.isFinite(pixelRatioOption) && pixelRatioOption > 0 ? pixelRatioOption : 1;
+      const effectiveRatio = Math.max(1, Math.ceil(pixelRatio));
+
+      resolvedCanvas.width = totalSize * effectiveRatio;
+      resolvedCanvas.height = totalSize * effectiveRatio;
       if (resolvedCanvas.style) {
         resolvedCanvas.style.width = totalSize + 'px';
         resolvedCanvas.style.height = totalSize + 'px';
+        if (!resolvedCanvas.style.imageRendering) {
+          resolvedCanvas.style.imageRendering = 'pixelated';
+        }
       }
 
       const ctx = resolvedCanvas.getContext('2d');
@@ -1017,10 +1031,14 @@
         throw new Error('2D context is unavailable');
       }
 
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, resolvedCanvas.width, resolvedCanvas.height);
+      ctx.scale(effectiveRatio, effectiveRatio);
+      ctx.imageSmoothingEnabled = false;
+
       const lightColor = opts.color && opts.color.light ? opts.color.light : '#ffffff';
       const darkColor = opts.color && opts.color.dark ? opts.color.dark : '#000000';
 
-      ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = lightColor;
       ctx.fillRect(0, 0, totalSize, totalSize);
       ctx.fillStyle = darkColor;
