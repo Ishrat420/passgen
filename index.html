@@ -100,6 +100,7 @@
         class="search-box"
       />
       <div class="history-buttons">
+        <button id="syncBtn">Sync via QR</button>
         <button id="exportBtn">Export JSON</button>
         <button id="importBtn">Import JSON</button>
         <button id="clearHistoryBtn">Clear All</button>
@@ -113,6 +114,100 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <div id="syncModal" class="sync-modal hidden" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
+    <div class="sync-modal__dialog">
+      <button type="button" class="sync-modal__close" aria-label="Close">×</button>
+      <h3 id="syncModalTitle">Device Sync</h3>
+      <p class="sync-modal__subtitle">Reconnect devices without the cloud. Exchange two QRs to derive a shared secret.</p>
+      <div class="sync-mode">
+        <button type="button" class="sync-mode__btn sync-mode__btn--active" data-mode="send">Send</button>
+        <button type="button" class="sync-mode__btn" data-mode="receive">Receive</button>
+      </div>
+
+      <section id="syncSendPanel" class="sync-panel">
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 1 — Share pairing offer</h4>
+          <p class="sync-panel__hint">Show this QR on the device with the registry. The other device scans or pastes the offer.</p>
+          <canvas id="syncOfferQr" class="sync-qr"></canvas>
+          <textarea id="syncOfferPayload" class="sync-payload" readonly placeholder="Offer payload appears here"></textarea>
+          <div class="sync-actions">
+            <button type="button" id="syncCopyOfferBtn">Copy Offer</button>
+            <button type="button" id="syncRegenerateBtn">New Session</button>
+          </div>
+        </div>
+
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 2 — Paste receiver response</h4>
+          <textarea id="syncResponseInput" class="sync-payload" placeholder="Paste receiver response payload"></textarea>
+          <div class="sync-actions">
+            <button type="button" id="syncProcessResponseBtn">Process Response</button>
+          </div>
+          <div id="syncSendStatus" class="sync-status" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 3 — Share registry bundle</h4>
+          <p class="sync-panel__hint">Only send this QR after both devices confirm the same pairing code.</p>
+          <div class="sync-session">
+            <span class="sync-session__label">Pairing code</span>
+            <span id="syncSessionCode" class="sync-session__value">———</span>
+          </div>
+          <canvas id="syncFinalQr" class="sync-qr"></canvas>
+          <textarea id="syncFinalPayload" class="sync-payload" readonly placeholder="Final payload appears here"></textarea>
+          <div class="sync-actions">
+            <button type="button" id="syncCopyFinalBtn">Copy Final Payload</button>
+          </div>
+        </div>
+
+        <small class="sync-footnote">Pairing codes come from the shared secret; close the dialog to discard keys.</small>
+      </section>
+
+      <section id="syncReceivePanel" class="sync-panel hidden">
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 1 — Paste sender offer</h4>
+          <textarea id="syncOfferInput" class="sync-payload" placeholder="Paste offer payload from sender"></textarea>
+          <div class="sync-actions">
+            <button type="button" id="syncProcessOfferBtn">Process Offer</button>
+          </div>
+        </div>
+
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 2 — Share your response</h4>
+          <p class="sync-panel__hint">Show this QR or payload to the sender and read the pairing code aloud so both sides can verify it.</p>
+          <div class="sync-session">
+            <span class="sync-session__label">Pairing code</span>
+            <span id="syncReceiverCode" class="sync-session__value">———</span>
+          </div>
+          <canvas id="syncResponseQr" class="sync-qr"></canvas>
+          <textarea id="syncResponsePayload" class="sync-payload" readonly placeholder="Response payload appears here"></textarea>
+          <div class="sync-actions">
+            <button type="button" id="syncCopyResponseBtn">Copy Response</button>
+          </div>
+        </div>
+
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 3 — Import registry bundle</h4>
+          <p class="sync-panel__hint">Ask the sender to read their pairing code aloud and enter it before importing.</p>
+          <label class="sync-label" for="syncCodeConfirm">Pairing code from sender</label>
+          <input
+            id="syncCodeConfirm"
+            class="sync-code"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            placeholder="Enter 8-digit code"
+            maxlength="8"
+          >
+          <textarea id="syncFinalInput" class="sync-payload" placeholder="Paste final payload from sender"></textarea>
+          <div class="sync-actions">
+            <button type="button" id="syncImportBtn">Import Registry</button>
+          </div>
+          <div id="syncImportStatus" class="sync-status" role="status" aria-live="polite"></div>
+          <small class="sync-footnote">Registry versions will merge with any matching sites. Passwords regenerate locally.</small>
+        </div>
+      </section>
+    </div>
+  </div>
   <script type="module" src="js/ui.js"></script>
   <footer id="appVersion">PasswordGen v2.0 — 100% Local, No Cloud</footer>
 </body>
