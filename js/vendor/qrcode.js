@@ -986,44 +986,21 @@
       const errorLevel = QRErrorCorrectLevel[level] ?? QRErrorCorrectLevel.M;
       const qr = createQRCode(String(text), errorLevel);
 
-      const hasExplicitMargin = Object.prototype.hasOwnProperty.call(opts, 'margin');
-      const rawMargin = hasExplicitMargin ? Number(opts.margin) : 4;
-      const marginBase = Number.isFinite(rawMargin) && rawMargin >= 0 ? Math.floor(rawMargin) : 4;
-      const margin = hasExplicitMargin ? marginBase : Math.max(4, marginBase);
+      const margin = opts.margin !== undefined ? Number(opts.margin) : 4;
       const moduleCount = qr.getModuleCount();
+      const sizeFactor = opts.scale
+        ? Number(opts.scale)
+        : opts.width
+        ? Number(opts.width) / (moduleCount + margin * 2)
+        : 4;
+      const scale = Math.max(1, sizeFactor);
+      const size = Math.ceil((moduleCount + margin * 2) * scale);
 
-      const hasExplicitScale = Number.isFinite(Number(opts.scale)) && Number(opts.scale) > 0;
-      let scale = hasExplicitScale ? Math.floor(Number(opts.scale)) : 0;
-      if (!hasExplicitScale) {
-        const targetWidth = opts.width ? Number(opts.width) : 0;
-        if (Number.isFinite(targetWidth) && targetWidth > 0) {
-          scale = Math.floor(targetWidth / (moduleCount + margin * 2));
-        }
-      }
-      if (!scale) {
-        scale = 4;
-      }
-
-      const minScale = opts.minScale !== undefined ? Math.max(1, Math.floor(Number(opts.minScale))) : 4;
-      if (!hasExplicitScale) {
-        scale = Math.max(scale, minScale);
-      }
-
-      const totalSize = (moduleCount + margin * 2) * scale;
-      const quietZone = margin * scale;
-
-      const pixelRatioOption = opts.pixelRatio !== undefined ? Number(opts.pixelRatio) : (global.devicePixelRatio || 1);
-      const pixelRatio = Number.isFinite(pixelRatioOption) && pixelRatioOption > 0 ? pixelRatioOption : 1;
-      const effectiveRatio = Math.max(1, Math.ceil(pixelRatio));
-
-      resolvedCanvas.width = totalSize * effectiveRatio;
-      resolvedCanvas.height = totalSize * effectiveRatio;
+      resolvedCanvas.width = size;
+      resolvedCanvas.height = size;
       if (resolvedCanvas.style) {
-        resolvedCanvas.style.width = totalSize + 'px';
-        resolvedCanvas.style.height = totalSize + 'px';
-        if (!resolvedCanvas.style.imageRendering) {
-          resolvedCanvas.style.imageRendering = 'pixelated';
-        }
+        resolvedCanvas.style.width = size + 'px';
+        resolvedCanvas.style.height = size + 'px';
       }
 
       const ctx = resolvedCanvas.getContext('2d');
@@ -1031,16 +1008,12 @@
         throw new Error('2D context is unavailable');
       }
 
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, resolvedCanvas.width, resolvedCanvas.height);
-      ctx.scale(effectiveRatio, effectiveRatio);
-      ctx.imageSmoothingEnabled = false;
-
       const lightColor = opts.color && opts.color.light ? opts.color.light : '#ffffff';
       const darkColor = opts.color && opts.color.dark ? opts.color.dark : '#000000';
 
+      ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = lightColor;
-      ctx.fillRect(0, 0, totalSize, totalSize);
+      ctx.fillRect(0, 0, size, size);
       ctx.fillStyle = darkColor;
 
       for (let row = 0; row < moduleCount; row++) {
@@ -1048,9 +1021,11 @@
           if (!qr.isDark(row, col)) {
             continue;
           }
-          const left = quietZone + col * scale;
-          const top = quietZone + row * scale;
-          ctx.fillRect(left, top, scale, scale);
+          const left = (col + margin) * scale;
+          const top = (row + margin) * scale;
+          const w = Math.ceil((col + margin + 1) * scale) - Math.floor(left);
+          const h = Math.ceil((row + margin + 1) * scale) - Math.floor(top);
+          ctx.fillRect(Math.round(left), Math.round(top), w, h);
         }
       }
 
