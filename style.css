@@ -533,13 +533,13 @@ input:checked + .slider:before {
 }
 
 .sync-qr {
-  width: 220px;
-  height: 220px;
+  display: block;
   align-self: center;
   border: 1px solid #ddd;
-  border-radius: 10px;
+  border-radius: 0;
   padding: 0.5rem;
   background: #fff;
+  image-rendering: pixelated;
 }
 
 .sync-session {
