@@ -119,7 +119,11 @@
     <div class="sync-modal__dialog">
       <button type="button" class="sync-modal__close" aria-label="Close">×</button>
       <h3 id="syncModalTitle">Device Sync</h3>
-      <p class="sync-modal__subtitle">Reconnect devices without the cloud. Exchange two QRs to derive a shared secret.</p>
+      <p class="sync-modal__subtitle">Reconnect devices without the cloud. Pick the flow that fits how you want to transfer.</p>
+      <div class="sync-flow" role="tablist" aria-label="Sync flow mode">
+        <button type="button" class="sync-flow__btn sync-flow__btn--active" data-flow="pair" role="tab" aria-selected="true">Paired QRs</button>
+        <button type="button" class="sync-flow__btn" data-flow="quick" role="tab" aria-selected="false">Quick Passphrase</button>
+      </div>
       <div id="syncToast" class="sync-toast" role="alert" aria-live="assertive"></div>
       <div class="sync-mode">
         <button type="button" class="sync-mode__btn sync-mode__btn--active" data-mode="send">Send</button>
@@ -162,6 +166,48 @@
         </div>
 
         <small class="sync-footnote">Pairing codes come from the shared secret; close the dialog to discard keys.</small>
+      </section>
+
+      <section id="syncQuickSendPanel" class="sync-panel hidden" aria-live="polite">
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 1 — Share this passphrase</h4>
+          <p class="sync-panel__hint">Read or send this passphrase to the other device. It protects your snapshot end-to-end.</p>
+          <div class="sync-secret">
+            <code id="syncQuickPassphrase" class="sync-secret__value">——————</code>
+            <div class="sync-actions sync-actions--inline">
+              <button type="button" id="syncQuickCopyPassphraseBtn">Copy Passphrase</button>
+              <button type="button" id="syncQuickRegenerateBtn">New Passphrase</button>
+            </div>
+          </div>
+        </div>
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 2 — Share encrypted bundle</h4>
+          <p class="sync-panel__hint">Show the QR or copy the payload once the receiver confirms the passphrase.</p>
+          <canvas id="syncQuickQr" class="sync-qr"></canvas>
+          <textarea id="syncQuickPayload" class="sync-payload" readonly placeholder="Encrypted bundle appears here"></textarea>
+          <div class="sync-actions">
+            <button type="button" id="syncCopyQuickPayloadBtn">Copy Bundle</button>
+          </div>
+        </div>
+        <div id="syncQuickStatus" class="sync-status" role="status" aria-live="polite"></div>
+        <small class="sync-footnote">Quick transfers trade the audible code for a strong passphrase. Regenerate when you close this window.</small>
+      </section>
+
+      <section id="syncQuickReceivePanel" class="sync-panel hidden">
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 1 — Enter shared passphrase</h4>
+          <label class="sync-label" for="syncQuickPassphraseInput">Passphrase from sender</label>
+          <input id="syncQuickPassphraseInput" class="sync-code" type="text" inputmode="latin" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX" spellcheck="false" />
+        </div>
+        <div class="sync-step">
+          <h4 class="sync-step__title">Step 2 — Paste encrypted bundle</h4>
+          <textarea id="syncQuickInput" class="sync-payload" placeholder="Paste encrypted bundle from sender"></textarea>
+          <div class="sync-actions">
+            <button type="button" id="syncQuickImportBtn">Import Bundle</button>
+          </div>
+        </div>
+        <div id="syncQuickImportStatus" class="sync-status" role="status" aria-live="polite"></div>
+        <small class="sync-footnote">Never reuse passphrases. Once imported, ask the sender to close their window to discard keys.</small>
       </section>
 
       <section id="syncReceivePanel" class="sync-panel hidden">

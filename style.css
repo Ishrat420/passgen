@@ -449,6 +449,35 @@ input:checked + .slider:before {
   margin-top: 0.2rem;
 }
 
+.sync-flow {
+  display: flex;
+  gap: 0.6rem;
+  margin: 1rem 0 1rem 0;
+}
+
+.sync-flow__btn {
+  flex: 1;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #f7f8fa;
+  color: #1f2933;
+  font-weight: 600;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sync-flow__btn:hover {
+  background: #eef2f8;
+}
+
+.sync-flow__btn--active {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+  box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.15) inset;
+}
+
 .sync-toast {
   display: none;
   margin-top: 0.75rem;
@@ -584,6 +613,10 @@ input:checked + .slider:before {
   flex-wrap: wrap;
 }
 
+.sync-actions--inline {
+  justify-content: center;
+}
+
 .sync-actions button {
   flex: 1;
   min-width: 140px;
@@ -645,6 +678,26 @@ input:checked + .slider:before {
   line-height: 1.4;
 }
 
+.sync-secret {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.sync-secret__value {
+  display: inline-block;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 1.15rem;
+  letter-spacing: 0.12em;
+  text-align: center;
+  color: #0f172a;
+  word-break: break-word;
+}
+
 @media (max-width: 540px) {
   .sync-modal__dialog {
     padding: 1.1rem;
@@ -654,6 +707,14 @@ input:checked + .slider:before {
   .sync-mode__btn {
     font-size: 0.9rem;
     padding: 0.55rem 0.6rem;
+  }
+
+  .sync-flow {
+    flex-direction: column;
+  }
+
+  .sync-flow__btn {
+    font-size: 0.9rem;
   }
 
   .sync-qr {
