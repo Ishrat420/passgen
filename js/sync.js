@@ -1,8 +1,7 @@
 import { exportRegistrySnapshot, importRegistrySnapshot } from './storage.js';
 
-const SYNC_PREFIX = 'PGENSYNC-';
-const QUICK_PREFIX = 'PGENQUICK-';
-const LEGACY_SYNC_PREFIXES = ['PGENSYNC:', 'passgen-sync:'];
+const SYNC_PREFIX = 'PGENSYNC:';
+const LEGACY_SYNC_PREFIXES = ['passgen-sync:'];
 const PAYLOAD_VERSION = 2;
 const QUICK_KDF_ITERATIONS = 200000;
 const QUICK_MIN_PASSPHRASE_LENGTH = 16;
@@ -991,11 +990,7 @@ async function renderQrCode(canvas, value) {
     QRCode.toCanvas(
       canvas,
       value,
-      {
-        margin: config.margin,
-        scale: config.scale,
-        errorCorrectionLevel: config.errorCorrectionLevel
-      },
+      { width: 320, margin: 6, minScale: 5, errorCorrectionLevel: 'Q' },
       error => {
         if (error) {
           reject(error);
