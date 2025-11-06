@@ -119,56 +119,13 @@
     <div class="sync-modal__dialog">
       <button type="button" class="sync-modal__close" aria-label="Close">×</button>
       <h3 id="syncModalTitle">Device Sync</h3>
-      <p class="sync-modal__subtitle">Reconnect devices without the cloud. Pick the flow that fits how you want to transfer.</p>
-      <div class="sync-flow" role="tablist" aria-label="Sync flow mode">
-        <button type="button" class="sync-flow__btn sync-flow__btn--active" data-flow="pair" role="tab" aria-selected="true">Paired QRs</button>
-        <button type="button" class="sync-flow__btn" data-flow="quick" role="tab" aria-selected="false">Quick Passphrase</button>
-      </div>
+      <p class="sync-modal__subtitle">Reconnect devices without the cloud. Use a shared passphrase to protect your data.</p>
       <div id="syncToast" class="sync-toast" role="alert" aria-live="assertive"></div>
       <div class="sync-mode">
         <button type="button" class="sync-mode__btn sync-mode__btn--active" data-mode="send">Send</button>
         <button type="button" class="sync-mode__btn" data-mode="receive">Receive</button>
       </div>
-
-      <section id="syncSendPanel" class="sync-panel">
-        <div class="sync-step">
-          <h4 class="sync-step__title">Step 1 — Share pairing offer</h4>
-          <p class="sync-panel__hint">Show this QR on the device with the registry. The other device scans or pastes the offer. Widen this window if the code looks cramped to keep the modules crisp.</p>
-          <canvas id="syncOfferQr" class="sync-qr"></canvas>
-          <textarea id="syncOfferPayload" class="sync-payload" readonly placeholder="Offer payload appears here"></textarea>
-          <div class="sync-actions">
-            <button type="button" id="syncCopyOfferBtn">Copy Offer</button>
-            <button type="button" id="syncRegenerateBtn">New Session</button>
-          </div>
-        </div>
-
-        <div class="sync-step">
-          <h4 class="sync-step__title">Step 2 — Paste receiver response</h4>
-          <textarea id="syncResponseInput" class="sync-payload" placeholder="Paste receiver response payload"></textarea>
-          <div class="sync-actions">
-            <button type="button" id="syncProcessResponseBtn">Process Response</button>
-          </div>
-          <div id="syncSendStatus" class="sync-status" role="status" aria-live="polite"></div>
-        </div>
-
-        <div class="sync-step">
-          <h4 class="sync-step__title">Step 3 — Share registry bundle</h4>
-          <p class="sync-panel__hint">Only send this QR after both devices confirm the same pairing code. Keeping the window wide leaves the QR sharp for scanners.</p>
-          <div class="sync-session">
-            <span class="sync-session__label">Pairing code</span>
-            <span id="syncSessionCode" class="sync-session__value">———</span>
-          </div>
-          <canvas id="syncFinalQr" class="sync-qr"></canvas>
-          <textarea id="syncFinalPayload" class="sync-payload" readonly placeholder="Final payload appears here"></textarea>
-          <div class="sync-actions">
-            <button type="button" id="syncCopyFinalBtn">Copy Final Payload</button>
-          </div>
-        </div>
-
-        <small class="sync-footnote">Pairing codes come from the shared secret; close the dialog to discard keys.</small>
-      </section>
-
-      <section id="syncQuickSendPanel" class="sync-panel hidden" aria-live="polite">
+      <section id="syncQuickSendPanel" class="sync-panel" aria-live="polite">
         <div class="sync-step">
           <h4 class="sync-step__title">Step 1 — Share this passphrase</h4>
           <p class="sync-panel__hint">Read or send this passphrase to the other device. It protects your snapshot end-to-end.</p>
@@ -208,50 +165,6 @@
         </div>
         <div id="syncQuickImportStatus" class="sync-status" role="status" aria-live="polite"></div>
         <small class="sync-footnote">Never reuse passphrases. Once imported, ask the sender to close their window to discard keys.</small>
-      </section>
-
-      <section id="syncReceivePanel" class="sync-panel hidden">
-        <div class="sync-step">
-          <h4 class="sync-step__title">Step 1 — Paste sender offer</h4>
-          <textarea id="syncOfferInput" class="sync-payload" placeholder="Paste offer payload from sender"></textarea>
-          <div class="sync-actions">
-            <button type="button" id="syncProcessOfferBtn">Process Offer</button>
-          </div>
-        </div>
-
-        <div class="sync-step">
-          <h4 class="sync-step__title">Step 2 — Share your response</h4>
-          <p class="sync-panel__hint">Show this QR or payload to the sender and read the pairing code aloud so both sides can verify it. If the code looks dense, rotate your device or expand the window for more pixels.</p>
-          <div class="sync-session">
-            <span class="sync-session__label">Pairing code</span>
-            <span id="syncReceiverCode" class="sync-session__value">———</span>
-          </div>
-          <canvas id="syncResponseQr" class="sync-qr"></canvas>
-          <textarea id="syncResponsePayload" class="sync-payload" readonly placeholder="Response payload appears here"></textarea>
-          <div class="sync-actions">
-            <button type="button" id="syncCopyResponseBtn">Copy Response</button>
-          </div>
-        </div>
-
-        <div class="sync-step">
-          <h4 class="sync-step__title">Step 3 — Import registry bundle</h4>
-          <p class="sync-panel__hint">Ask the sender to read their pairing code aloud and enter it before importing.</p>
-          <label class="sync-label" for="syncCodeConfirm">Pairing code from sender</label>
-          <input
-            id="syncCodeConfirm"
-            class="sync-code"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            placeholder="Enter 8-digit code"
-            maxlength="8"
-          >
-          <textarea id="syncFinalInput" class="sync-payload" placeholder="Paste final payload from sender"></textarea>
-          <div class="sync-actions">
-            <button type="button" id="syncImportBtn">Import Registry</button>
-          </div>
-          <div id="syncImportStatus" class="sync-status" role="status" aria-live="polite"></div>
-          <small class="sync-footnote">Registry versions will merge with any matching sites. Passwords regenerate locally.</small>
-        </div>
       </section>
     </div>
   </div>
