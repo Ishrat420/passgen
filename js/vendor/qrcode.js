@@ -35,6 +35,12 @@
     PATTERN111: 7
   };
 
+  const ALPHANUMERIC_CHARSET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
+  const ALPHANUMERIC_MAP = ALPHANUMERIC_CHARSET.split('').reduce((map, char, index) => {
+    map[char] = index;
+    return map;
+  }, {});
+
   const QRMath = {
     EXP_TABLE: new Array(256),
     LOG_TABLE: new Array(256),
@@ -160,7 +166,7 @@
 
   function QR8bitByte(data) {
     this.mode = QRMode.MODE_8BIT_BYTE;
-    this.data = data;
+    this.data = String(data);
   }
 
   QR8bitByte.prototype = {
@@ -174,6 +180,47 @@
       }
     }
   };
+
+  function QRAlphanumeric(data) {
+    this.mode = QRMode.MODE_ALPHA_NUM;
+    this.data = String(data);
+  }
+
+  QRAlphanumeric.prototype = {
+    getLength() {
+      return this.data.length;
+    },
+
+    write(buffer) {
+      let index = 0;
+      while (index + 1 < this.data.length) {
+        const first = ALPHANUMERIC_MAP[this.data[index]];
+        const second = ALPHANUMERIC_MAP[this.data[index + 1]];
+        if (first === undefined || second === undefined) {
+          throw new Error('Invalid alphanumeric character encountered.');
+        }
+        buffer.put(first * 45 + second, 11);
+        index += 2;
+      }
+
+      if (index < this.data.length) {
+        const remaining = ALPHANUMERIC_MAP[this.data[index]];
+        if (remaining === undefined) {
+          throw new Error('Invalid alphanumeric character encountered.');
+        }
+        buffer.put(remaining, 6);
+      }
+    }
+  };
+
+  function isAlphanumeric(text) {
+    for (let i = 0; i < text.length; i++) {
+      if (!Object.prototype.hasOwnProperty.call(ALPHANUMERIC_MAP, text[i])) {
+        return false;
+      }
+    }
+    return text.length > 0;
+  }
 
   function QRRSBlock(totalCount, dataCount) {
     this.totalCount = totalCount;
@@ -640,7 +687,8 @@
 
   QRCodeModel.prototype = {
     addData(data) {
-      const newData = new QR8bitByte(data);
+      const text = String(data);
+      const newData = isAlphanumeric(text) ? new QRAlphanumeric(text) : new QR8bitByte(text);
       this.dataList.push(newData);
       this.dataCache = null;
     },
