@@ -1,6 +1,7 @@
 import { exportRegistrySnapshot, importRegistrySnapshot } from './storage.js';
 
 const SYNC_PREFIX = 'PGENSYNC:';
+const QUICK_PREFIX = 'PGENQUICK:';
 const LEGACY_SYNC_PREFIXES = ['passgen-sync:'];
 const PAYLOAD_VERSION = 2;
 const QUICK_KDF_ITERATIONS = 200000;
