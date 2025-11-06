@@ -1,6 +1,7 @@
 import { exportRegistrySnapshot, importRegistrySnapshot } from './storage.js';
 
-const SYNC_PREFIX = 'passgen-sync:';
+const SYNC_PREFIX = 'PGENSYNC-';
+const LEGACY_SYNC_PREFIXES = ['PGENSYNC:', 'passgen-sync:'];
 const PAYLOAD_VERSION = 2;
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -487,6 +488,8 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   importBtn?.addEventListener('click', handleImport);
 }
 
+export { encodeEnvelope, decodeEnvelope };
+
 function countVersions(stats) {
   if (!stats || !Array.isArray(stats.entries)) return 0;
   return stats.entries.reduce((total, entry) => total + (entry.versions?.length || 0), 0);
@@ -506,11 +509,13 @@ function encodeEnvelope(envelope) {
 
 function decodeEnvelope(payload) {
   const cleaned = payload.trim();
-  if (!cleaned.startsWith(SYNC_PREFIX)) {
+  const knownPrefixes = [SYNC_PREFIX, ...LEGACY_SYNC_PREFIXES];
+  const detectedPrefix = knownPrefixes.find(prefix => cleaned.startsWith(prefix));
+  if (!detectedPrefix) {
     throw new Error('Invalid payload format. Expecting QR data from PasswordGen.');
   }
 
-  const encoded = cleaned.slice(SYNC_PREFIX.length).replace(/\s+/g, '');
+  const encoded = cleaned.slice(detectedPrefix.length).replace(/\s+/g, '');
   let json;
   try {
     json = decodeText(encoded);
@@ -610,7 +615,11 @@ async function renderQrCode(canvas, value) {
     return;
   }
 
-  if (typeof QRCode === 'undefined' || typeof QRCode.toCanvas !== 'function') {
+  if (
+    typeof QRCode === 'undefined' ||
+    typeof QRCode.toCanvas !== 'function' ||
+    typeof QRCode.create !== 'function'
+  ) {
     const context = canvas.getContext('2d');
     if (context) {
       context.clearRect(0, 0, canvas.width || 220, canvas.height || 220);
@@ -620,15 +629,29 @@ async function renderQrCode(canvas, value) {
     return;
   }
 
+  const config = selectQrRenderConfig(value);
+
   return new Promise((resolve, reject) => {
     QRCode.toCanvas(
       canvas,
       value,
-      { width: 220, margin: 1, errorCorrectionLevel: 'M' },
+      {
+        margin: config.margin,
+        scale: config.scale,
+        errorCorrectionLevel: config.errorCorrectionLevel
+      },
       error => {
         if (error) {
           reject(error);
           return;
+        }
+        canvas.dataset.qrModules = String(config.moduleCount);
+        canvas.dataset.qrLevel = config.errorCorrectionLevel;
+        if (typeof canvas.setAttribute === 'function') {
+          canvas.setAttribute(
+            'aria-label',
+            `QR code with ${config.moduleCount}×${config.moduleCount} modules using ${config.errorCorrectionLevel}-level error correction`
+          );
         }
         resolve();
       }
@@ -636,10 +659,68 @@ async function renderQrCode(canvas, value) {
   });
 }
 
+function selectQrRenderConfig(value) {
+  const levels = ['M', 'Q', 'L'];
+  const maxDenseModules = 135;
+  const maxCanvasSize = 640;
+  const configs = [];
+  let lastError = null;
+
+  for (const level of levels) {
+    try {
+      const qr = QRCode.create(value, { errorCorrectionLevel: level });
+      const moduleCount = qr.getModuleCount();
+      configs.push({ level, moduleCount });
+      if (moduleCount <= maxDenseModules) {
+        break;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!configs.length) {
+    if (lastError && /code length overflow/i.test(lastError.message)) {
+      throw new Error('Payload exceeds the maximum QR capacity. Copy the payload instead.');
+    }
+    throw lastError || new Error('Unable to encode payload.');
+  }
+
+  const selected =
+    configs.find(config => config.moduleCount <= maxDenseModules) || configs[configs.length - 1];
+
+  let margin = selected.moduleCount > 120 ? 6 : 5;
+  let preferredScale = 6;
+
+  if (selected.moduleCount > 150) {
+    preferredScale = 4;
+  } else if (selected.moduleCount > 110) {
+    preferredScale = 5;
+  }
+
+  const totalModules = selected.moduleCount + margin * 2;
+  const maxScale = Math.max(4, Math.floor(maxCanvasSize / totalModules));
+  const scale = Math.max(4, Math.min(preferredScale, maxScale));
+
+  return {
+    margin,
+    scale,
+    errorCorrectionLevel: selected.level,
+    moduleCount: selected.moduleCount
+  };
+}
+
 function clearCanvas(canvas) {
   const context = canvas.getContext('2d');
   if (context) {
     context.clearRect(0, 0, canvas.width || 220, canvas.height || 220);
+  }
+  if (canvas.dataset) {
+    delete canvas.dataset.qrModules;
+    delete canvas.dataset.qrLevel;
+  }
+  if (typeof canvas.removeAttribute === 'function') {
+    canvas.removeAttribute('aria-label');
   }
 }
 
@@ -697,18 +778,89 @@ async function copyToClipboard(value, button) {
 }
 
 function encodeText(value) {
-  const encoded = encodeURIComponent(value).replace(/%([0-9A-F]{2})/g, (_, hex) =>
-    String.fromCharCode(parseInt(hex, 16))
-  );
-  return btoa(encoded);
+  const bytes = textEncoder.encode(value);
+  return base32Encode(bytes);
 }
 
 function decodeText(value) {
-  const binary = atob(value);
+  const sanitized = value.replace(/\s+/g, '');
+  const base32Candidate = sanitized.toUpperCase();
+  if (base32Pattern.test(base32Candidate)) {
+    try {
+      const decoded = base32Decode(base32Candidate);
+      return textDecoder.decode(decoded);
+    } catch (error) {
+      // Fall through to legacy decoding on failure.
+    }
+  }
+
+  const binary = atob(sanitized);
   const percentEncoded = Array.from(binary)
     .map(char => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
     .join('');
   return decodeURIComponent(percentEncoded);
+}
+
+const base32Alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const base32Lookup = base32Alphabet.split('').reduce((lookup, char, index) => {
+  lookup[char] = index;
+  return lookup;
+}, {});
+const base32Pattern = /^[0-9A-Z]+$/;
+
+function base32Encode(bytes) {
+  if (!bytes || !bytes.length) return '';
+
+  let output = '';
+  let buffer = 0;
+  let bitsLeft = 0;
+
+  for (let i = 0; i < bytes.length; i += 1) {
+    buffer = (buffer << 8) | bytes[i];
+    bitsLeft += 8;
+
+    while (bitsLeft >= 5) {
+      bitsLeft -= 5;
+      output += base32Alphabet[(buffer >> bitsLeft) & 0x1f];
+    }
+  }
+
+  if (bitsLeft > 0) {
+    output += base32Alphabet[(buffer << (5 - bitsLeft)) & 0x1f];
+  }
+
+  return output;
+}
+
+function base32Decode(value) {
+  if (!value) return new Uint8Array(0);
+
+  let buffer = 0;
+  let bitsLeft = 0;
+  const bytes = [];
+
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+    const val = base32Lookup[char];
+    if (val === undefined) {
+      throw new Error(`Invalid base32 character: ${char}`);
+    }
+
+    buffer = (buffer << 5) | val;
+    bitsLeft += 5;
+
+    if (bitsLeft >= 8) {
+      bitsLeft -= 8;
+      bytes.push((buffer >> bitsLeft) & 0xff);
+    }
+  }
+
+  const mask = (1 << bitsLeft) - 1;
+  if (bitsLeft > 0 && (buffer & mask) !== 0) {
+    throw new Error('Excess padding bits detected in base32 input.');
+  }
+
+  return new Uint8Array(bytes);
 }
 
 function toBase64(buffer) {
