@@ -15,6 +15,10 @@ const quickState = {
 
 let currentMode = 'send';
 let isPreparingQuickBundle = false;
+let quickScannerDetector = null;
+let quickScannerStream = null;
+let quickScannerFrameId = 0;
+let isQuickScannerActive = false;
 
 export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   const syncBtn = document.getElementById('syncBtn');
@@ -38,6 +42,11 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   const quickRegenerateBtn = document.getElementById('syncQuickRegenerateBtn');
   const quickCopyPayloadBtn = document.getElementById('syncCopyQuickPayloadBtn');
   const quickImportBtn = document.getElementById('syncQuickImportBtn');
+  const quickScanBtn = document.getElementById('syncQuickScanBtn');
+  const quickScanner = document.getElementById('syncQuickScanner');
+  const quickScannerCloseBtn = document.getElementById('syncQuickScannerClose');
+  const quickScannerVideo = document.getElementById('syncQuickScannerVideo');
+  const quickScannerStatus = document.getElementById('syncQuickScannerStatus');
 
   function switchMode(mode) {
     currentMode = mode;
@@ -62,7 +71,12 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   }
 
   function handleKeydown(event) {
-    if (event.key === 'Escape') closeModal();
+    if (event.key !== 'Escape') return;
+    if (isQuickScannerOpen()) {
+      closeQuickScanner();
+      return;
+    }
+    closeModal();
   }
 
   function openModal(defaultMode = 'send') {
@@ -80,6 +94,7 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     modal.classList.add('hidden');
     document.body.classList.remove('sync-modal-open');
     document.removeEventListener('keydown', handleKeydown);
+    closeQuickScanner({ silent: true, restoreFocus: false });
     resetQuickState();
     clearQuickSendUi();
     clearQuickReceiveUi();
@@ -102,6 +117,7 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
       quickImportStatus.textContent = '';
       quickImportStatus.className = 'sync-status';
     }
+    closeQuickScanner({ silent: true, restoreFocus: false });
   }
 
   async function prepareQuickBundle({ regenerate = false } = {}) {
@@ -217,6 +233,106 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     }
   }
 
+  function isQuickScannerOpen() {
+    return quickScanner && !quickScanner.classList.contains('hidden');
+  }
+
+  async function handleQuickScan() {
+    if (!quickScanner || !quickScannerVideo || !quickScannerStatus) return;
+
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      updateQuickImportStatus('Camera access is not available in this browser. Paste the bundle manually.', true);
+      return;
+    }
+
+    try {
+      if (!quickScannerDetector && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+        quickScannerDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      }
+    } catch (error) {
+      quickScannerDetector = null;
+    }
+
+    if (!quickScannerDetector) {
+      updateQuickImportStatus('QR scanning is not supported in this browser. Paste the bundle manually.', true);
+      return;
+    }
+
+    if (isQuickScannerActive) return;
+
+    try {
+      quickScannerStatus.textContent = 'Opening camera…';
+      quickScanner.classList.remove('hidden');
+      quickScannerVideo.srcObject = null;
+      quickScannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      quickScannerVideo.srcObject = quickScannerStream;
+      isQuickScannerActive = true;
+      await quickScannerVideo.play();
+      quickScannerStatus.textContent = 'Align the QR code within the frame.';
+      quickScannerCloseBtn?.focus();
+      quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
+    } catch (error) {
+      closeQuickScanner({ silent: true });
+      updateQuickImportStatus('Camera permission denied. Paste the bundle manually.', true);
+    }
+  }
+
+  async function scanQuickFrame() {
+    if (!isQuickScannerActive || !quickScannerDetector || !quickScannerVideo) return;
+
+    if (quickScannerVideo.readyState < 2) {
+      quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
+      return;
+    }
+
+    try {
+      const barcodes = await quickScannerDetector.detect(quickScannerVideo);
+      const hit = barcodes.find(code => typeof code.rawValue === 'string' && code.rawValue.trim().length > 0);
+      if (hit) {
+        const value = hit.rawValue.trim();
+        if (quickInputTextarea) {
+          quickInputTextarea.value = value;
+        }
+        updateQuickImportStatus('Encrypted bundle captured from QR. Confirm the passphrase, then import.', false);
+        closeQuickScanner();
+        return;
+      }
+      quickScannerStatus.textContent = 'Hold steady—scanning…';
+    } catch (error) {
+      quickScannerStatus.textContent = 'Unable to read QR yet. Adjust lighting or distance.';
+    }
+
+    quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
+  }
+
+  function closeQuickScanner({ silent = false, restoreFocus = true } = {}) {
+    if (!quickScanner) return;
+    if (quickScannerFrameId) {
+      cancelAnimationFrame(quickScannerFrameId);
+      quickScannerFrameId = 0;
+    }
+    if (quickScannerVideo) {
+      try {
+        quickScannerVideo.pause();
+      } catch (error) {
+        // ignore pause errors
+      }
+      quickScannerVideo.srcObject = null;
+    }
+    if (quickScannerStream) {
+      quickScannerStream.getTracks().forEach(track => track.stop());
+      quickScannerStream = null;
+    }
+    isQuickScannerActive = false;
+    quickScanner.classList.add('hidden');
+    if (!silent && quickScannerStatus) {
+      quickScannerStatus.textContent = 'Allow camera access and point it at the sender QR.';
+    }
+    if (restoreFocus && quickScanBtn && !quickScanBtn.disabled) {
+      quickScanBtn.focus();
+    }
+  }
+
   function updateQuickImportStatus(message, isError) {
     if (!quickImportStatus) return;
     quickImportStatus.textContent = message;
@@ -232,13 +348,36 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   syncBtn.addEventListener('click', () => openModal('send'));
   closeBtn?.addEventListener('click', closeModal);
   modal.addEventListener('click', event => {
-    if (event.target === modal) closeModal();
+    if (event.target !== modal) return;
+    if (isQuickScannerOpen()) {
+      closeQuickScanner();
+      return;
+    }
+    closeModal();
   });
   modeButtons.forEach(button => button.addEventListener('click', () => switchMode(button.dataset.mode)));
+  const canAttemptScan =
+    typeof navigator !== 'undefined' &&
+    !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') &&
+    typeof window !== 'undefined' &&
+    'BarcodeDetector' in window;
+
+  if (quickScanBtn && !canAttemptScan) {
+    quickScanBtn.disabled = true;
+    quickScanBtn.title = 'QR scanning is not supported in this browser.';
+  }
+
   quickCopyPassphraseBtn?.addEventListener('click', handleCopyQuickPassphrase);
   quickRegenerateBtn?.addEventListener('click', handleQuickRegenerate);
   quickCopyPayloadBtn?.addEventListener('click', handleCopyQuickPayload);
   quickImportBtn?.addEventListener('click', handleQuickImport);
+  quickScanBtn?.addEventListener('click', handleQuickScan);
+  quickScannerCloseBtn?.addEventListener('click', () => closeQuickScanner());
+  quickScanner?.addEventListener('click', event => {
+    if (event.target === quickScanner) {
+      closeQuickScanner();
+    }
+  });
 }
 
 function countVersions(stats) {

@@ -160,12 +160,23 @@
           <h4 class="sync-step__title">Step 2 — Paste encrypted bundle</h4>
           <textarea id="syncQuickInput" class="sync-payload" placeholder="Paste encrypted bundle from sender"></textarea>
           <div class="sync-actions">
+            <button type="button" id="syncQuickScanBtn" aria-label="Scan QR code to fill encrypted bundle">📷 Scan QR</button>
             <button type="button" id="syncQuickImportBtn">Import Bundle</button>
           </div>
         </div>
         <div id="syncQuickImportStatus" class="sync-status" role="status" aria-live="polite"></div>
         <small class="sync-footnote">Never reuse passphrases. Once imported, ask the sender to close their window to discard keys.</small>
       </section>
+      <div id="syncQuickScanner" class="sync-scanner hidden" role="dialog" aria-modal="true" aria-labelledby="syncQuickScannerTitle">
+        <div class="sync-scanner__panel">
+          <div class="sync-scanner__header">
+            <h5 id="syncQuickScannerTitle">Scan sender QR</h5>
+            <button type="button" id="syncQuickScannerClose" class="sync-scanner__close" aria-label="Close QR scanner">×</button>
+          </div>
+          <video id="syncQuickScannerVideo" class="sync-scanner__video" autoplay playsinline muted></video>
+          <p id="syncQuickScannerStatus" class="sync-scanner__status">Allow camera access and point it at the sender QR.</p>
+        </div>
+      </div>
     </div>
   </div>
   <script type="module" src="js/ui.js"></script>
