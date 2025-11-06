@@ -129,7 +129,7 @@
       <section id="syncSendPanel" class="sync-panel">
         <div class="sync-step">
           <h4 class="sync-step__title">Step 1 — Share pairing offer</h4>
-          <p class="sync-panel__hint">Show this QR on the device with the registry. The other device scans or pastes the offer.</p>
+          <p class="sync-panel__hint">Show this QR on the device with the registry. The other device scans or pastes the offer. Widen this window if the code looks cramped to keep the modules crisp.</p>
           <canvas id="syncOfferQr" class="sync-qr"></canvas>
           <textarea id="syncOfferPayload" class="sync-payload" readonly placeholder="Offer payload appears here"></textarea>
           <div class="sync-actions">
@@ -149,7 +149,7 @@
 
         <div class="sync-step">
           <h4 class="sync-step__title">Step 3 — Share registry bundle</h4>
-          <p class="sync-panel__hint">Only send this QR after both devices confirm the same pairing code.</p>
+          <p class="sync-panel__hint">Only send this QR after both devices confirm the same pairing code. Keeping the window wide leaves the QR sharp for scanners.</p>
           <div class="sync-session">
             <span class="sync-session__label">Pairing code</span>
             <span id="syncSessionCode" class="sync-session__value">———</span>
@@ -175,7 +175,7 @@
 
         <div class="sync-step">
           <h4 class="sync-step__title">Step 2 — Share your response</h4>
-          <p class="sync-panel__hint">Show this QR or payload to the sender and read the pairing code aloud so both sides can verify it.</p>
+          <p class="sync-panel__hint">Show this QR or payload to the sender and read the pairing code aloud so both sides can verify it. If the code looks dense, rotate your device or expand the window for more pixels.</p>
           <div class="sync-session">
             <span class="sync-session__label">Pairing code</span>
             <span id="syncReceiverCode" class="sync-session__value">———</span>
