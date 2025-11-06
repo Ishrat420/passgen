@@ -3,6 +3,8 @@ import { exportRegistrySnapshot, importRegistrySnapshot } from './storage.js';
 const SYNC_PREFIX = 'PGENSYNC:';
 const LEGACY_SYNC_PREFIXES = ['passgen-sync:'];
 const PAYLOAD_VERSION = 2;
+const QUICK_KDF_ITERATIONS = 200000;
+const QUICK_MIN_PASSPHRASE_LENGTH = 16;
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
@@ -25,6 +27,16 @@ const receiveState = {
 };
 
 let isPreparingOffer = false;
+let isPreparingQuickBundle = false;
+
+const quickState = {
+  passphrase: '',
+  payload: '',
+  stats: null
+};
+
+let currentFlow = 'pair';
+let currentMode = 'send';
 
 export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   const syncBtn = document.getElementById('syncBtn');
@@ -32,9 +44,12 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   if (!syncBtn || !modal) return;
 
   const closeBtn = modal.querySelector('.sync-modal__close');
+  const flowButtons = Array.from(modal.querySelectorAll('.sync-flow__btn'));
   const modeButtons = Array.from(modal.querySelectorAll('.sync-mode__btn'));
   const sendPanel = document.getElementById('syncSendPanel');
   const receivePanel = document.getElementById('syncReceivePanel');
+  const quickSendPanel = document.getElementById('syncQuickSendPanel');
+  const quickReceivePanel = document.getElementById('syncQuickReceivePanel');
   const regenerateBtn = document.getElementById('syncRegenerateBtn');
   const copyOfferBtn = document.getElementById('syncCopyOfferBtn');
   const copyFinalBtn = document.getElementById('syncCopyFinalBtn');
@@ -57,28 +72,106 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   const offerCanvas = document.getElementById('syncOfferQr');
   const finalCanvas = document.getElementById('syncFinalQr');
   const responseCanvas = document.getElementById('syncResponseQr');
+  const quickCanvas = document.getElementById('syncQuickQr');
+
+  const quickPassphraseLabel = document.getElementById('syncQuickPassphrase');
+  const quickPassphraseInput = document.getElementById('syncQuickPassphraseInput');
+  const quickPayloadTextarea = document.getElementById('syncQuickPayload');
+  const quickInputTextarea = document.getElementById('syncQuickInput');
+  const quickStatus = document.getElementById('syncQuickStatus');
+  const quickImportStatus = document.getElementById('syncQuickImportStatus');
+
+  const quickCopyPassphraseBtn = document.getElementById('syncQuickCopyPassphraseBtn');
+  const quickRegenerateBtn = document.getElementById('syncQuickRegenerateBtn');
+  const quickCopyPayloadBtn = document.getElementById('syncCopyQuickPayloadBtn');
+  const quickImportBtn = document.getElementById('syncQuickImportBtn');
+
+  flowButtons.forEach(button => {
+    const isActive = button.dataset.flow === currentFlow;
+    button.classList.toggle('sync-flow__btn--active', isActive);
+    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
 
   function switchMode(mode) {
+    currentMode = mode;
     modeButtons.forEach(button => {
       const isActive = button.dataset.mode === mode;
       button.classList.toggle('sync-mode__btn--active', isActive);
+      if (isActive) {
+        button.setAttribute('aria-selected', 'true');
+      } else {
+        button.setAttribute('aria-selected', 'false');
+      }
     });
 
+    if (currentFlow === 'quick') {
+      sendPanel?.classList.add('hidden');
+      receivePanel?.classList.add('hidden');
+      if (mode === 'receive') {
+        quickSendPanel?.classList.add('hidden');
+        quickReceivePanel?.classList.remove('hidden');
+        clearQuickReceiveUi();
+      } else {
+        quickReceivePanel?.classList.add('hidden');
+        quickSendPanel?.classList.remove('hidden');
+        if (!quickState.payload) {
+          void prepareQuickBundle();
+        }
+      }
+      return;
+    }
+
+    quickSendPanel?.classList.add('hidden');
+    quickReceivePanel?.classList.add('hidden');
+
     if (mode === 'receive') {
-      sendPanel.classList.add('hidden');
-      receivePanel.classList.remove('hidden');
+      sendPanel?.classList.add('hidden');
+      receivePanel?.classList.remove('hidden');
       resetSendState();
+      clearSendUi();
       if (importStatus) {
         importStatus.textContent = '';
         importStatus.className = 'sync-status';
       }
       clearReceiveUi();
     } else {
-      receivePanel.classList.add('hidden');
-      sendPanel.classList.remove('hidden');
+      receivePanel?.classList.add('hidden');
+      sendPanel?.classList.remove('hidden');
       resetReceiveState();
+      clearReceiveUi();
       void prepareSendOffer();
     }
+  }
+
+  function switchFlow(flow) {
+    const changed = currentFlow !== flow;
+    currentFlow = flow;
+    flowButtons.forEach(button => {
+      const isActive = button.dataset.flow === flow;
+      button.classList.toggle('sync-flow__btn--active', isActive);
+      button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    if (!changed) {
+      switchMode(currentMode);
+      return;
+    }
+
+    if (flow === 'quick') {
+      resetSendState();
+      clearSendUi();
+      resetReceiveState();
+      clearReceiveUi();
+      resetQuickState();
+      clearQuickSendUi();
+      clearQuickReceiveUi();
+    } else {
+      resetQuickState();
+      clearQuickSendUi();
+      clearQuickReceiveUi();
+    }
+
+    switchMode(currentMode);
   }
 
   function handleKeydown(event) {
@@ -89,7 +182,8 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     modal.classList.remove('hidden');
     document.body.classList.add('sync-modal-open');
     document.addEventListener('keydown', handleKeydown);
-    switchMode(defaultMode);
+    currentMode = defaultMode;
+    switchFlow(currentFlow);
   }
 
   function closeModal() {
@@ -98,8 +192,13 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     document.removeEventListener('keydown', handleKeydown);
     resetSendState();
     resetReceiveState();
+    resetQuickState();
     clearSendUi();
     clearReceiveUi();
+    clearQuickSendUi();
+    clearQuickReceiveUi();
+    currentFlow = 'pair';
+    currentMode = 'send';
   }
 
   function clearSendUi() {
@@ -126,6 +225,25 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
       importStatus.className = 'sync-status';
     }
     if (responseCanvas) clearCanvas(responseCanvas);
+  }
+
+  function clearQuickSendUi() {
+    if (quickPassphraseLabel) quickPassphraseLabel.textContent = '——————';
+    if (quickPayloadTextarea) quickPayloadTextarea.value = '';
+    if (quickStatus) {
+      quickStatus.textContent = '';
+      quickStatus.className = 'sync-status';
+    }
+    if (quickCanvas) clearCanvas(quickCanvas);
+  }
+
+  function clearQuickReceiveUi() {
+    if (quickPassphraseInput) quickPassphraseInput.value = '';
+    if (quickInputTextarea) quickInputTextarea.value = '';
+    if (quickImportStatus) {
+      quickImportStatus.textContent = '';
+      quickImportStatus.className = 'sync-status';
+    }
   }
 
   async function prepareSendOffer() {
@@ -187,6 +305,60 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     }
   }
 
+  async function prepareQuickBundle({ regenerate = false } = {}) {
+    if (!quickSendPanel) return;
+    if (isPreparingQuickBundle) return;
+    isPreparingQuickBundle = true;
+
+    if (quickStatus) {
+      quickStatus.textContent = 'Preparing encrypted bundle…';
+      quickStatus.className = 'sync-status';
+    }
+
+    try {
+      const snapshot = await exportRegistrySnapshot();
+      const stats = snapshot;
+      let displayPassphrase = quickState.passphrase;
+      if (!displayPassphrase || regenerate) {
+        displayPassphrase = generateQuickPassphrase();
+      }
+
+      const compactPassphrase = ensureQuickPassphrase(displayPassphrase);
+      const payload = await encodeQuickPayload(snapshot, compactPassphrase);
+
+      quickState.passphrase = formatQuickPassphrase(compactPassphrase);
+      quickState.payload = payload;
+      quickState.stats = stats;
+
+      if (quickPassphraseLabel) {
+        quickPassphraseLabel.textContent = quickState.passphrase;
+      }
+      if (quickPayloadTextarea) {
+        quickPayloadTextarea.value = payload;
+      }
+      await renderQrCode(quickCanvas, payload);
+
+      if (quickStatus) {
+        if (stats && stats.sites) {
+          const versions = countVersions(stats);
+          quickStatus.textContent = `Bundle includes ${stats.sites} site${stats.sites === 1 ? '' : 's'} and ${versions} version${versions === 1 ? '' : 's'}. Share only after the receiver confirms the passphrase.`;
+          quickStatus.className = 'sync-status sync-status--success';
+        } else {
+          quickStatus.textContent = 'No registry entries yet. The passphrase still protects future syncs.';
+          quickStatus.className = 'sync-status';
+        }
+      }
+    } catch (error) {
+      if (quickStatus) {
+        quickStatus.textContent = `Failed to prepare bundle: ${error.message}`;
+        quickStatus.className = 'sync-status sync-status--error';
+      }
+      if (quickCanvas) clearCanvas(quickCanvas);
+    } finally {
+      isPreparingQuickBundle = false;
+    }
+  }
+
   async function handleCopyOffer() {
     if (!sendState.offerPayload) return;
     await copyToClipboard(sendState.offerPayload, copyOfferBtn);
@@ -200,6 +372,20 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   async function handleCopyResponse() {
     if (!receiveState.responsePayload) return;
     await copyToClipboard(receiveState.responsePayload, copyResponseBtn);
+  }
+
+  async function handleCopyQuickPassphrase() {
+    if (!quickState.passphrase) return;
+    await copyToClipboard(quickState.passphrase, quickCopyPassphraseBtn);
+  }
+
+  async function handleCopyQuickPayload() {
+    if (!quickState.payload) return;
+    await copyToClipboard(quickState.payload, quickCopyPayloadBtn);
+  }
+
+  function handleQuickRegenerate() {
+    void prepareQuickBundle({ regenerate: true });
   }
 
   async function handleProcessResponse() {
@@ -443,6 +629,51 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     }
   }
 
+  async function handleQuickImport() {
+    if (!quickInputTextarea || !quickPassphraseInput) return;
+
+    const rawPassphrase = quickPassphraseInput.value;
+    let compactPassphrase;
+    try {
+      compactPassphrase = ensureQuickPassphrase(rawPassphrase);
+    } catch (error) {
+      updateQuickImportStatus(error.message, true);
+      return;
+    }
+
+    const rawPayload = quickInputTextarea.value.trim();
+    if (!rawPayload) {
+      updateQuickImportStatus('Paste the encrypted bundle from the sender.', true);
+      return;
+    }
+
+    let envelope;
+    try {
+      envelope = decodeQuickPayload(rawPayload);
+    } catch (error) {
+      updateQuickImportStatus(error.message, true);
+      return;
+    }
+
+    try {
+      const snapshot = await decryptQuickPayload(envelope, compactPassphrase);
+      const { importedSites, importedVersions } = await importRegistrySnapshot(snapshot);
+      updateQuickImportStatus(`✅ Imported ${importedVersions} version${importedVersions === 1 ? '' : 's'} across ${importedSites} site${importedSites === 1 ? '' : 's'}.`, false);
+      quickInputTextarea.value = '';
+      quickPassphraseInput.value = '';
+
+      if (typeof refreshHistoryList === 'function') {
+        const searchValue = document.getElementById('searchHistory')?.value?.trim() || '';
+        await refreshHistoryList(searchValue);
+      }
+      if (typeof updateStorageInfo === 'function') {
+        await updateStorageInfo();
+      }
+    } catch (error) {
+      updateQuickImportStatus(`❌ Import failed: ${error.message}`, true);
+    }
+  }
+
   function updateSendStatus(message, isError) {
     if (!sendStatus) return;
     sendStatus.textContent = message;
@@ -453,6 +684,12 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     if (!importStatus) return;
     importStatus.textContent = message;
     importStatus.className = `sync-status${isError ? ' sync-status--error' : ' sync-status--success'}`;
+  }
+
+  function updateQuickImportStatus(message, isError) {
+    if (!quickImportStatus) return;
+    quickImportStatus.textContent = message;
+    quickImportStatus.className = `sync-status${isError ? ' sync-status--error' : ' sync-status--success'}`;
   }
 
   function resetSendState() {
@@ -473,19 +710,30 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     receiveState.responsePayload = '';
   }
 
+  function resetQuickState() {
+    quickState.passphrase = '';
+    quickState.payload = '';
+    quickState.stats = null;
+  }
+
   syncBtn.addEventListener('click', () => openModal('send'));
   closeBtn?.addEventListener('click', closeModal);
   modal.addEventListener('click', event => {
     if (event.target === modal) closeModal();
   });
+  flowButtons.forEach(button => button.addEventListener('click', () => switchFlow(button.dataset.flow)));
   modeButtons.forEach(button => button.addEventListener('click', () => switchMode(button.dataset.mode)));
   regenerateBtn?.addEventListener('click', prepareSendOffer);
   copyOfferBtn?.addEventListener('click', handleCopyOffer);
   copyFinalBtn?.addEventListener('click', handleCopyFinal);
   copyResponseBtn?.addEventListener('click', handleCopyResponse);
+  quickCopyPassphraseBtn?.addEventListener('click', handleCopyQuickPassphrase);
+  quickRegenerateBtn?.addEventListener('click', handleQuickRegenerate);
+  quickCopyPayloadBtn?.addEventListener('click', handleCopyQuickPayload);
   processResponseBtn?.addEventListener('click', handleProcessResponse);
   processOfferBtn?.addEventListener('click', handleProcessOffer);
   importBtn?.addEventListener('click', handleImport);
+  quickImportBtn?.addEventListener('click', handleQuickImport);
 }
 
 export { encodeEnvelope, decodeEnvelope };
@@ -503,8 +751,23 @@ function generateSessionId() {
     .slice(0, 20);
 }
 
-function encodeEnvelope(envelope) {
-  return `${SYNC_PREFIX}${encodeText(JSON.stringify(envelope))}`;
+async function encodeQuickPayload(snapshot, passphrase) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const aesKey = await deriveQuickAesKey(passphrase, salt, QUICK_KDF_ITERATIONS);
+  const plaintext = textEncoder.encode(JSON.stringify(snapshot));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, plaintext));
+
+  const envelope = {
+    v: PAYLOAD_VERSION,
+    t: 'quick',
+    iter: QUICK_KDF_ITERATIONS,
+    salt: toBase64(salt),
+    iv: toBase64(iv),
+    c: toBase64(ciphertext)
+  };
+
+  return `${QUICK_PREFIX}${encodeText(JSON.stringify(envelope))}`;
 }
 
 function decodeEnvelope(payload) {
@@ -535,6 +798,98 @@ function decodeEnvelope(payload) {
   }
 
   return envelope;
+}
+
+function decodeQuickPayload(payload) {
+  const cleaned = payload.trim();
+  if (!cleaned.startsWith(QUICK_PREFIX)) {
+    throw new Error('Payload is not a quick transfer bundle.');
+  }
+
+  const encoded = cleaned.slice(QUICK_PREFIX.length).replace(/\s+/g, '');
+  let json;
+  try {
+    json = decodeText(encoded);
+  } catch (error) {
+    throw new Error('Payload data is corrupted or incomplete.');
+  }
+
+  let envelope;
+  try {
+    envelope = JSON.parse(json);
+  } catch (error) {
+    throw new Error('Failed to parse payload JSON.');
+  }
+
+  if (!envelope || envelope.v !== PAYLOAD_VERSION || envelope.t !== 'quick') {
+    throw new Error('Payload is not a quick transfer bundle.');
+  }
+
+  return envelope;
+}
+
+function encodeEnvelope(envelope) {
+  return `${SYNC_PREFIX}${encodeText(JSON.stringify(envelope))}`;
+}
+
+async function deriveQuickAesKey(passphrase, saltBytes, iterations) {
+  const passphraseBytes = textEncoder.encode(passphrase);
+  const baseKey = await crypto.subtle.importKey('raw', passphraseBytes, 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      hash: 'SHA-256',
+      salt: saltBytes,
+      iterations
+    },
+    baseKey,
+    256
+  );
+  return crypto.subtle.importKey('raw', bits, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+
+async function decryptQuickPayload(envelope, passphrase) {
+  if (!envelope || envelope.t !== 'quick') {
+    throw new Error('Payload is not a quick transfer bundle.');
+  }
+  if (!envelope.salt || !envelope.iv || !envelope.c) {
+    throw new Error('Payload missing encryption fields.');
+  }
+
+  const salt = fromBase64(envelope.salt);
+  const iv = fromBase64(envelope.iv);
+  const ciphertext = fromBase64(envelope.c);
+  const iterations = typeof envelope.iter === 'number' && envelope.iter > 0 ? envelope.iter : QUICK_KDF_ITERATIONS;
+  const aesKey = await deriveQuickAesKey(passphrase, salt, iterations);
+
+  try {
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ciphertext);
+    return JSON.parse(textDecoder.decode(new Uint8Array(decrypted)));
+  } catch (error) {
+    throw new Error('Unable to decrypt payload. Double-check the passphrase and try again.');
+  }
+}
+
+function ensureQuickPassphrase(value) {
+  const compact = compactQuickPassphrase(value);
+  if (compact.length < QUICK_MIN_PASSPHRASE_LENGTH) {
+    throw new Error(`Passphrase must include at least ${QUICK_MIN_PASSPHRASE_LENGTH} characters (four groups).`);
+  }
+  return compact;
+}
+
+function compactQuickPassphrase(value) {
+  return (value || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
+}
+
+function formatQuickPassphrase(compact) {
+  return compact.match(/.{1,4}/g)?.join('-') || compact;
+}
+
+function generateQuickPassphrase() {
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  const compact = base32Encode(bytes).slice(0, QUICK_MIN_PASSPHRASE_LENGTH);
+  return formatQuickPassphrase(compact);
 }
 
 async function deriveSharedSecret(privateKey, publicKey) {
