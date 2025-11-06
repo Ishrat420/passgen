@@ -412,7 +412,6 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
         URL.revokeObjectURL(imageUrl);
       }
     }
-  }
 
   function updateQuickImportStatus(message, isError) {
     if (!quickImportStatus) return;
