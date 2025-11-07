@@ -1165,6 +1165,21 @@ details[open] > summary::after {
   }
 }
 
+@media (max-width: 600px) {
+  .field-label {
+    position: relative;
+    padding-right: 1.75rem;
+  }
+
+  .field-label .info-tip {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    margin-left: 0;
+  }
+}
+
 /* Mobile compatibility, show tooltip on tap */
 @media (hover: none) {
   .info-tip::after {
