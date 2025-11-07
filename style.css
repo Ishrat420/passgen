@@ -437,6 +437,13 @@ input:checked + .slider:before {
   font-size: 1.4rem;
   cursor: pointer;
   color: #444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0.25rem;
 }
 
 .sync-modal__close:hover {
