@@ -12,70 +12,108 @@
 <body>
   <main class="app-shell">
     <header class="app-header">
-      <h2>Custom Password Generator</h2>
+      <p class="app-header__eyebrow">Deterministic toolkit</p>
+      <h1 class="app-header__title">Custom Password Generator</h1>
+      <p class="app-header__subtitle">Carry a native-like vault that derives the same password every time you need it.</p>
     </header>
 
     <section class="app-card generator-card">
-      <label>Website or App Name:</label>
-      <input id="website" placeholder="e.g. facebook.com">
-
-      <label for="master-key">Your Secret / Master Phrase:
-        <span class="info-tip" data-tip="This is your master phrase/key, remember it and keep it secret! We don't Store it here. ">?</span>
-      </label>
-      <input id="secret" placeholder="e.g. ChottoMate!42">
-
-      <label for="counter">Version Counter (for rotation):
-        <span class="info-tip" data-tip="Used when generating multiple passwords for the same site, increment to get a new one.">?</span>
-      </label>
-      <input type="number" id="counter" value="0" min="0">
-
-      <label for="algo-label">Algorithm:
-        <span class="info-tip" data-tip="The cryptographic method used to derive your password.">?</span>
-      </label>
-      <select id="algorithm">
-        <optgroup label="Secure (Recommended)">
-          <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
-          <option value="Argon2id">Argon2id</option>
-          <option value="scrypt">scrypt</option>
-        </optgroup>
-        <optgroup label="Simple">
-          <option value="SHA-256">SHA-256</option>
-          <option value="SHA-512">SHA-512</option>
-        </optgroup>
-      </select>
-
-      <label>Character length</label>
-      <input type="number" id="length" value="16" min="8" max="50">
-
-      <!-- Character Policy Toggle -->
-      <div class="toggle-row">
-        <label class="switch">
-          <input type="checkbox" id="policyToggle" checked>
-          <span class="slider"></span>
-        </label>
-        <label for="policyToggle" class="switch-label">Include upper, lower, digit & symbol</label>
+      <div class="section-heading">
+        <h2>Recipe Inputs</h2>
+        <p>Fill these once and regenerate on any device.</p>
       </div>
-      <small id="policyHint" class="hint" style="display:none;">Disabled while Compatibility Mode is on</small>
 
-      <!-- Compatibility Mode Toggle -->
-      <div class="toggle-row">
-        <label class="switch">
-          <input type="checkbox" id="compatToggle">
-          <span class="slider"></span>
-        </label>
-        <label for="compatToggle" class="switch-label">Compatibility Mode (Safe Charset)</label>
+      <div class="field-group">
+        <label class="field-label" for="website">Website or App Name</label>
+        <input id="website" class="field-input" placeholder="e.g. facebook.com">
       </div>
-      <small id="compatHint" class="hint" style="display:none;">Disabled while Character Policy is on</small>
 
-      <button id="generateBtn" type="button">Generate Password</button>
-      <small id="registryMessage" class="info-msg" style="display:none; color:#777; margin-top:6px; font-style:italic;"></small>
+      <div class="field-group">
+        <label class="field-label" for="secret">Your Secret / Master Phrase
+          <span class="info-tip" data-tip="This is your master phrase/key, remember it and keep it secret! We don't Store it here.">?</span>
+        </label>
+        <input id="secret" class="field-input" placeholder="e.g. ChottoMate!42">
+      </div>
 
-      <div id="result" style="display:none;">
-        <span id="password"></span><br>
-        <button id="copyBtn" type="button">Copy</button><br>
-        <small id="recipeInfo"></small><br>
-        <small id="diversityWarning" style="display:none; color:#d33; font-weight:bold;"></small><br>
-        <button id="explainBtn" type="button">🔍 Explain My Password</button>
+      <div class="field-grid">
+        <div class="field-group">
+          <label class="field-label" for="counter">Version Counter
+            <span class="info-tip" data-tip="Used when generating multiple passwords for the same site, increment to get a new one.">?</span>
+          </label>
+          <input type="number" id="counter" class="field-input" value="0" min="0">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="length">Character Length</label>
+          <input type="number" id="length" class="field-input" value="16" min="8" max="50">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="algorithm">Algorithm
+          <span class="info-tip" data-tip="The cryptographic method used to derive your password.">?</span>
+        </label>
+        <div class="select-wrapper">
+          <select id="algorithm" class="field-input">
+            <optgroup label="Secure (Recommended)">
+              <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
+              <option value="Argon2id">Argon2id</option>
+              <option value="scrypt">scrypt</option>
+            </optgroup>
+            <optgroup label="Simple">
+              <option value="SHA-256">SHA-256</option>
+              <option value="SHA-512">SHA-512</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
+      <div class="setting-stack" role="group" aria-labelledby="quickSettingsHeading">
+        <h3 id="quickSettingsHeading" class="section-subheading">Quick Settings</h3>
+
+        <div class="setting-row">
+          <div class="setting-copy">
+            <span class="setting-title">Character Policy</span>
+            <span class="setting-description">Include upper, lower, digit & symbol</span>
+          </div>
+          <label class="switch" for="policyToggle">
+            <input type="checkbox" id="policyToggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <small id="policyHint" class="hint" style="display:none;">Disabled while Compatibility Mode is on</small>
+
+        <div class="setting-row">
+          <div class="setting-copy">
+            <span class="setting-title">Compatibility Mode</span>
+            <span class="setting-description">Use a safe character set for legacy sites</span>
+          </div>
+          <label class="switch" for="compatToggle">
+            <input type="checkbox" id="compatToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <small id="compatHint" class="hint" style="display:none;">Disabled while Character Policy is on</small>
+      </div>
+
+      <div class="action-bar">
+        <button id="generateBtn" class="primary-action" type="button">Generate Password</button>
+        <small id="registryMessage" class="info-msg" style="display:none;">&nbsp;</small>
+      </div>
+    </section>
+
+    <section class="app-card result-card">
+      <div class="section-heading">
+        <h2>Latest Password</h2>
+        <p>Copy it quickly before it hides itself.</p>
+      </div>
+      <div id="result" class="result-panel" style="display:none;">
+        <span id="password"></span>
+        <div class="result-actions">
+          <button id="copyBtn" type="button">Copy</button>
+          <small id="recipeInfo"></small>
+          <small id="diversityWarning" style="display:none;">⚠️ Password lacks full character diversity.</small>
+          <button id="explainBtn" type="button">🔍 Explain My Password</button>
+        </div>
         <div id="explainBox"></div>
       </div>
     </section>
@@ -83,17 +121,28 @@
     <section class="app-card advanced-card">
       <details>
         <summary>Advanced Options ⚙️</summary>
-        <label>PBKDF2 Iterations:</label><input type="number" id="iterations" value="100000" min="10000">
-        <label>Argon2 Memory (MB):</label><input type="number" id="argonMem" value="64" min="8">
-        <label>scrypt N (CPU cost):</label><input type="number" id="scryptN" value="16384" min="1024">
-        <button id="resetAppBtn" class="danger-btn">Reset All App Data</button>
-        <small style="display:block;margin-top:4px;color:#666;">
+        <div class="advanced-grid">
+          <div class="field-group">
+            <label class="field-label" for="iterations">PBKDF2 Iterations</label>
+            <input type="number" id="iterations" class="field-input" value="100000" min="10000">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="argonMem">Argon2 Memory (MB)</label>
+            <input type="number" id="argonMem" class="field-input" value="64" min="8">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="scryptN">scrypt N (CPU cost)</label>
+            <input type="number" id="scryptN" class="field-input" value="16384" min="1024">
+          </div>
+        </div>
+        <button id="resetAppBtn" class="danger-btn" type="button">Reset All App Data</button>
+        <small class="advanced-hint">
           Clears all stored recipes, registry history, and preferences.
         </small>
       </details>
     </section>
 
-    <section class="history-sheet">
+    <section class="app-card history-sheet">
       <details id="history" open>
         <summary>🔐 Saved Recipes</summary>
 
@@ -105,18 +154,19 @@
             class="search-box"
           />
           <div class="history-buttons">
-            <button id="syncBtn">Sync via QR</button>
-            <button id="exportBtn">Export JSON</button>
-            <button id="importBtn">Import JSON</button>
-            <button id="clearHistoryBtn">Clear All</button>
+            <button id="syncBtn" type="button">Sync via QR</button>
+            <button id="exportBtn" type="button">Export JSON</button>
+            <button id="importBtn" type="button">Import JSON</button>
+            <button id="clearHistoryBtn" type="button">Clear All</button>
           </div>
         </div>
 
         <ul id="historyList" class="history-list"></ul>
-        <small id="storageInfo" style="color:#555;"></small>
+        <small id="storageInfo" class="history-footnote"></small>
       </details>
     </section>
-  
+    <footer id="appVersion">PasswordGen v2.0 — 100% Local, No Cloud</footer>
+  </main>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
@@ -188,7 +238,5 @@
     </div>
   </div>
   <script type="module" src="js/ui.js"></script>
-  <footer id="appVersion">PasswordGen v2.0 — 100% Local, No Cloud</footer>
-  </main>
 </body>
 </html>
