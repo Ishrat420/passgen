@@ -428,10 +428,21 @@ input:checked + .slider:before {
   overflow-y: auto;
 }
 
+.sync-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.sync-modal__title {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .sync-modal__close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   border: none;
   background: rgba(17, 24, 39, 0.08);
   font-size: 1.4rem;
@@ -442,11 +453,13 @@ input:checked + .slider:before {
   justify-content: center;
   width: 3rem;
   height: 3rem;
-  margin: 0;
+  margin: -0.25rem -0.25rem 0 0;
   padding: 0;
+  line-height: 1;
   border-radius: 999px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
   transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  flex: 0 0 auto;
 }
 
 .sync-modal__close:hover {

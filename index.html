@@ -117,8 +117,10 @@
   <script src="js/vendor/qrcode.js"></script>
   <div id="syncModal" class="sync-modal hidden" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
     <div class="sync-modal__dialog">
-      <button type="button" class="sync-modal__close" aria-label="Close">×</button>
-      <h3 id="syncModalTitle">Device Sync</h3>
+      <header class="sync-modal__header">
+        <h3 id="syncModalTitle" class="sync-modal__title">Device Sync</h3>
+        <button type="button" class="sync-modal__close" aria-label="Close">×</button>
+      </header>
       <p class="sync-modal__subtitle">Reconnect devices without the cloud. Use a shared passphrase to protect your data.</p>
       <div id="syncToast" class="sync-toast" role="alert" aria-live="assertive"></div>
       <div class="sync-mode">
