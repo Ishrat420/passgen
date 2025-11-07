@@ -11,39 +11,41 @@
 
 <body>
   <main class="app-shell">
-  <h2>Custom Password Generator</h2>
+    <header class="app-header">
+      <h2>Custom Password Generator</h2>
+    </header>
 
-  <label>Website or App Name:</label>
-  <input id="website" placeholder="e.g. facebook.com">
+    <section class="app-card generator-card">
+      <label>Website or App Name:</label>
+      <input id="website" placeholder="e.g. facebook.com">
 
       <label for="master-key">Your Secret / Master Phrase:
-          <span class="info-tip" data-tip="This is your master phrase/key, remember it and keep it secret! We don't Store it here. ">?</span>
+        <span class="info-tip" data-tip="This is your master phrase/key, remember it and keep it secret! We don't Store it here. ">?</span>
       </label>
-  <input id="secret" placeholder="e.g. ChottoMate!42">
+      <input id="secret" placeholder="e.g. ChottoMate!42">
 
       <label for="counter">Version Counter (for rotation):
-          <span class="info-tip" data-tip="Used when generating multiple passwords for the same site, increment to get a new one.">?</span>
+        <span class="info-tip" data-tip="Used when generating multiple passwords for the same site, increment to get a new one.">?</span>
       </label>
-  <input type="number" id="counter" value="0" min="0">
-
+      <input type="number" id="counter" value="0" min="0">
 
       <label for="algo-label">Algorithm:
-          <span class="info-tip" data-tip="The cryptographic method used to derive your password.">?</span>
+        <span class="info-tip" data-tip="The cryptographic method used to derive your password.">?</span>
       </label>
-  <select id="algorithm">
-    <optgroup label="Secure (Recommended)">
-      <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
-      <option value="Argon2id">Argon2id</option>
-      <option value="scrypt">scrypt</option>
-    </optgroup>
-    <optgroup label="Simple">
-      <option value="SHA-256">SHA-256</option>
-      <option value="SHA-512">SHA-512</option>
-    </optgroup>
-  </select>
+      <select id="algorithm">
+        <optgroup label="Secure (Recommended)">
+          <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
+          <option value="Argon2id">Argon2id</option>
+          <option value="scrypt">scrypt</option>
+        </optgroup>
+        <optgroup label="Simple">
+          <option value="SHA-256">SHA-256</option>
+          <option value="SHA-512">SHA-512</option>
+        </optgroup>
+      </select>
 
-  <label>Character length</label>
-  <input type="number" id="length" value="16" min="8" max="50">
+      <label>Character length</label>
+      <input type="number" id="length" value="16" min="8" max="50">
 
       <!-- Character Policy Toggle -->
       <div class="toggle-row">
@@ -65,52 +67,55 @@
       </div>
       <small id="compatHint" class="hint" style="display:none;">Disabled while Character Policy is on</small>
 
+      <button id="generateBtn" type="button">Generate Password</button>
+      <small id="registryMessage" class="info-msg" style="display:none; color:#777; margin-top:6px; font-style:italic;"></small>
 
-  <button id="generateBtn" type="button">Generate Password</button>
-  <small id="registryMessage" class="info-msg" style="display:none; color:#777; margin-top:6px; font-style:italic;"></small>
-
-  <div id="result" style="display:none;">
-    <span id="password"></span><br>
-    <button id="copyBtn" type="button">Copy</button><br>
-    <small id="recipeInfo"></small><br>
-    <small id="diversityWarning" style="display:none; color:#d33; font-weight:bold;"></small><br>
-    <button id="explainBtn" type="button">🔍 Explain My Password</button>
-    <div id="explainBox"></div>
-  </div>
-
-  <details>
-    <summary>Advanced Options ⚙️</summary>
-    <label>PBKDF2 Iterations:</label><input type="number" id="iterations" value="100000" min="10000">
-    <label>Argon2 Memory (MB):</label><input type="number" id="argonMem" value="64" min="8">
-    <label>scrypt N (CPU cost):</label><input type="number" id="scryptN" value="16384" min="1024">
-    <button id="resetAppBtn" class="danger-btn">Reset All App Data</button>
-    <small style="display:block;margin-top:4px;color:#666;">
-    Clears all stored recipes, registry history, and preferences.
-    </small>
-  </details>
-  <hr>
-
-  <details id="history" open>
-    <summary>🔐 Saved Recipes</summary>
-
-    <div class="history-controls">
-      <input
-        type="text"
-        id="searchHistory"
-        placeholder="Search by site..."
-        class="search-box"
-      />
-      <div class="history-buttons">
-        <button id="syncBtn">Sync via QR</button>
-        <button id="exportBtn">Export JSON</button>
-        <button id="importBtn">Import JSON</button>
-        <button id="clearHistoryBtn">Clear All</button>
+      <div id="result" style="display:none;">
+        <span id="password"></span><br>
+        <button id="copyBtn" type="button">Copy</button><br>
+        <small id="recipeInfo"></small><br>
+        <small id="diversityWarning" style="display:none; color:#d33; font-weight:bold;"></small><br>
+        <button id="explainBtn" type="button">🔍 Explain My Password</button>
+        <div id="explainBox"></div>
       </div>
-    </div>
+    </section>
 
-    <ul id="historyList" class="history-list"></ul>
-    <small id="storageInfo" style="color:#555;"></small>
-  </details>
+    <section class="app-card advanced-card">
+      <details>
+        <summary>Advanced Options ⚙️</summary>
+        <label>PBKDF2 Iterations:</label><input type="number" id="iterations" value="100000" min="10000">
+        <label>Argon2 Memory (MB):</label><input type="number" id="argonMem" value="64" min="8">
+        <label>scrypt N (CPU cost):</label><input type="number" id="scryptN" value="16384" min="1024">
+        <button id="resetAppBtn" class="danger-btn">Reset All App Data</button>
+        <small style="display:block;margin-top:4px;color:#666;">
+          Clears all stored recipes, registry history, and preferences.
+        </small>
+      </details>
+    </section>
+
+    <section class="history-sheet">
+      <details id="history" open>
+        <summary>🔐 Saved Recipes</summary>
+
+        <div class="history-controls">
+          <input
+            type="text"
+            id="searchHistory"
+            placeholder="Search by site..."
+            class="search-box"
+          />
+          <div class="history-buttons">
+            <button id="syncBtn">Sync via QR</button>
+            <button id="exportBtn">Export JSON</button>
+            <button id="importBtn">Import JSON</button>
+            <button id="clearHistoryBtn">Clear All</button>
+          </div>
+        </div>
+
+        <ul id="historyList" class="history-list"></ul>
+        <small id="storageInfo" style="color:#555;"></small>
+      </details>
+    </section>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>

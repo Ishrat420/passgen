@@ -8,6 +8,9 @@ body {
 }
 
 .app-shell {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 2vw, 1.5rem);
   max-width: 550px;
   width: min(100%, 550px);
   margin: 0 auto;
@@ -94,6 +97,11 @@ small {
 
 details {
   margin-top: 1rem;
+}
+
+.advanced-card details,
+.history-sheet details {
+  margin-top: 0;
 }
 
 /* Toggle */
@@ -199,7 +207,7 @@ input:checked + .slider:before {
 }
 
 /* --- History Section Styling --- */
-#history {
+.history-sheet {
   margin-top: 2rem;
 }
 
@@ -412,6 +420,24 @@ input:checked + .slider:before {
 
 .hidden {
   display: none !important;
+}
+
+@media (max-width: 600px) {
+  .app-shell {
+    min-height: 100dvh;
+  }
+
+  .history-sheet {
+    margin-top: auto;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    padding: clamp(1.25rem, 6vw, 2rem);
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.12);
+  }
+
+  .history-sheet details {
+    margin-top: 0;
+  }
 }
 
 @media (max-width: 480px) {
