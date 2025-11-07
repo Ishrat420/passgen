@@ -911,6 +911,17 @@ input:checked + .slider:before {
   opacity: 1;
 }
 
+@media (max-width: 600px) {
+  .info-tip::after {
+    left: auto;
+    right: 0;
+    transform: none;
+    max-width: min(240px, calc(100vw - 2.5rem));
+    text-align: left;
+    margin-top: 0.35rem;
+  }
+}
+
 /* Mobile compatibility, show tooltip on tap */
 @media (hover: none) {
   .info-tip::after {
