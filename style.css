@@ -8,11 +8,31 @@ body {
 }
 
 .app-shell {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 2vw, 1.5rem);
   max-width: 550px;
   width: min(100%, 550px);
   margin: 0 auto;
   padding: clamp(1rem, 4vw, 2rem);
   box-sizing: border-box;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  background: inherit;
+  padding-block: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 1;
+}
+
+.app-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
 }
 
 h2 {
@@ -88,6 +108,11 @@ small {
 
 details {
   margin-top: 1rem;
+}
+
+.advanced-card details,
+.history-sheet details {
+  margin-top: 0;
 }
 
 /* Toggle */
@@ -193,7 +218,7 @@ input:checked + .slider:before {
 }
 
 /* --- History Section Styling --- */
-#history {
+.history-sheet {
   margin-top: 2rem;
 }
 
@@ -407,6 +432,24 @@ input:checked + .slider:before {
 
 .hidden {
   display: none !important;
+}
+
+@media (max-width: 600px) {
+  .app-shell {
+    min-height: 100dvh;
+  }
+
+  .history-sheet {
+    margin-top: auto;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    padding: clamp(1.25rem, 6vw, 2rem);
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.12);
+  }
+
+  .history-sheet details {
+    margin-top: 0;
+  }
 }
 
 @media (max-width: 480px) {
