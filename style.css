@@ -430,17 +430,16 @@ input:checked + .slider:before {
 
 .sync-modal__header {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.85rem;
-  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
 }
 
 .sync-modal__title {
   margin: 0;
   flex: 1 1 auto;
-  min-width: 12ch;
+  min-width: 0;
 }
 
 .sync-modal__close {
@@ -454,15 +453,13 @@ input:checked + .slider:before {
   justify-content: center;
   width: 3rem;
   height: 3rem;
-  margin-left: auto;
+  margin: -0.25rem -0.25rem 0 0;
   padding: 0;
   line-height: 1;
   border-radius: 999px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
   transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   flex: 0 0 auto;
-  min-width: 3rem;
-  align-self: flex-start;
 }
 
 .sync-modal__close:hover {
