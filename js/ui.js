@@ -142,9 +142,25 @@ function handleDiversityWarning(generator, password) {
 
 function showResultBox() {
   const resultDiv = document.getElementById('result');
+  resultDiv.style.display = 'block';
+
+  const previousTransition = resultDiv.style.transition;
+  resultDiv.style.transition = 'max-height 0.3s ease, opacity 0.3s ease, transform 0.3s ease';
+
   resultDiv.classList.remove('result-hidden');
   resultDiv.classList.add('result-visible');
-  resultDiv.style.display = 'block';
+
+  const targetHeight = resultDiv.scrollHeight;
+  // Force a reflow so the browser acknowledges the class changes before animating height.
+  resultDiv.getBoundingClientRect();
+
+  // Allow the result box to expand smoothly based on its content height.
+  resultDiv.style.maxHeight = targetHeight + 'px';
+
+  requestAnimationFrame(() => {
+    resultDiv.style.maxHeight = '';
+    resultDiv.style.transition = previousTransition;
+  });
 }
 
 function scheduleAutoHide() {
