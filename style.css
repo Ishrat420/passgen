@@ -18,21 +18,10 @@ body {
   box-sizing: border-box;
 }
 
-.app-header {
-  position: sticky;
-  top: 0;
-  background: inherit;
-  padding-block: 1rem;
-  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  z-index: 1;
-}
-
-.app-card {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
-  padding: clamp(1.25rem, 3vw, 1.75rem);
+@media (max-width: 600px) {
+  .app-shell {
+    padding-inline: clamp(0.75rem, 3vw, 1rem);
+  }
 }
 
 h2 {
@@ -408,19 +397,18 @@ input:checked + .slider:before {
 }
 
 #result {
-  transition: max-height 0.3s ease, opacity 0.3s ease;
-  overflow: hidden;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .result-hidden {
   max-height: 0;
+  overflow: hidden;
   opacity: 0;
   transform: translateY(-5px);
   pointer-events: none;
 }
 
 .result-visible {
-  max-height: 300px;
   opacity: 1;
   transform: translateY(0);
   pointer-events: all;
