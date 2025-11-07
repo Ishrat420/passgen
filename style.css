@@ -107,6 +107,8 @@ body {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  position: relative;
+  overflow: visible;
 }
 
 .field-input {
@@ -1112,41 +1114,47 @@ details[open] > summary::after {
   }
 }
 
-
 .info-tip {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-left: 6px;
   background: #333;
   color: #fff;
   font-size: 0.75rem;
   font-weight: bold;
   border-radius: 50%;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   text-align: center;
-  line-height: 16px;
-  cursor: pointer;
+  line-height: 1;
+  cursor: help;
   position: relative;
+  user-select: none;
+  z-index: 1;
 }
 
 .info-tip::after {
   content: attr(data-tip);
   position: absolute;
-  bottom: 125%; /* show above the icon */
+  bottom: calc(100% + 10px);
   left: 50%;
   transform: translateX(-50%);
   background: #222;
   color: #fff;
   font-size: 0.8rem;
-  padding: 6px 10px;
-  border-radius: 5px;
+  padding: 8px 10px;
+  border-radius: 8px;
   white-space: normal;
   width: max-content;
-  max-width: 250px;
+  max-width: min(280px, calc(100vw - 2.5rem));
+  overflow-wrap: break-word;
+  word-break: break-word;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
-  z-index: 100;
+  z-index: 999;
+  box-shadow: 0 12px 24px -12px rgba(17, 17, 17, 0.45);
 }
 
 .info-tip:hover::after,
@@ -1159,15 +1167,13 @@ details[open] > summary::after {
     left: auto;
     right: 0;
     transform: none;
-    max-width: min(240px, calc(100vw - 2.5rem));
+    max-width: min(260px, calc(100vw - 3rem));
     text-align: left;
-    margin-top: 0.35rem;
   }
 }
 
 @media (max-width: 600px) {
   .field-label {
-    position: relative;
     padding-right: 1.75rem;
   }
 
@@ -1184,7 +1190,7 @@ details[open] > summary::after {
 @media (hover: none) {
   .info-tip::after {
     bottom: auto;
-    top: 125%;
+    top: calc(100% + 10px);
   }
   .info-tip:active::after {
     opacity: 1;
