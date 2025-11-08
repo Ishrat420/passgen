@@ -1,5 +1,15 @@
 import { CryptoHelper } from './crypto.js';
 
+const DEFAULT_LENGTH = 16;
+const MIN_LENGTH = 8;
+const MAX_LENGTH = 50;
+
+const DEFAULT_PARAMETERS = Object.freeze({
+  iterations: 100000,
+  argonMem: 64,
+  scryptN: 16384
+});
+
 const CHARSETS = {
   lowers: 'abcdefghijklmnopqrstuvwxyz',
   uppers: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
@@ -16,28 +26,71 @@ export class PasswordGenerator {
     parameters = {}
   } = {}) {
     this.algorithm = algorithm;
-    this.length = length;
+    // Defensive guard: clamp to supported bounds and fall back to a safe default
+    // when callers provide invalid lengths.
+    const numericLength = Number(length);
+    if (Number.isInteger(numericLength)) {
+      this.length = Math.min(MAX_LENGTH, Math.max(MIN_LENGTH, numericLength));
+    } else {
+      // Fall back to a safe default when callers provide invalid lengths.
+      this.length = DEFAULT_LENGTH;
+    }
     this.policyOn = policyOn;
     this.compatMode = compatMode;
-    this.parameters = {
-      iterations: parameters.iterations ?? 100000,
-      argonMem: parameters.argonMem ?? 64,
-      scryptN: parameters.scryptN ?? 16384
-    };
+    this.parameters = PasswordGenerator.normalizeParameters(parameters);
   }
 
   static normalizeSite(site) {
+    const canonicalize = value => {
+      if (value == null) return '';
+      let normalized = String(value).toLowerCase().trim().replace(/^www\./, '');
+
+      // Align bare inputs like "facebook" with their common ".com" hostname so
+      // both generate the same password. Only strip ".com" when it is the sole
+      // suffix (e.g. "example.com"), preserving other subdomains such as
+      // "mail.example.com".
+      const dotMatches = normalized.match(/\./g) || [];
+      if (dotMatches.length === 1 && normalized.endsWith('.com')) {
+        normalized = normalized.slice(0, -4);
+      }
+
+      return normalized;
+    };
+
+    const rawSite = site == null ? '' : String(site);
+
     try {
-      let input = site.trim();
+      let input = rawSite.trim();
       if (!input.includes('://')) input = 'https://' + input;
-      return new URL(input).hostname.toLowerCase().replace(/^www\./, '');
+      return canonicalize(new URL(input).hostname);
     } catch {
-      return site.toLowerCase().trim();
+      return canonicalize(rawSite);
     }
   }
 
   normalizeSite(site) {
     return PasswordGenerator.normalizeSite(site);
+  }
+
+  static normalizeCounter(counter) {
+    const raw = String(counter ?? '0').trim();
+    if (raw === '') return '0';
+
+    if (/^-?\d+$/.test(raw)) {
+      if (typeof BigInt === 'function') {
+        try {
+          return String(BigInt(raw));
+        } catch {
+          // Fall back to Number parsing below.
+        }
+      }
+
+      const parsed = parseInt(raw, 10);
+      if (Number.isNaN(parsed)) return raw.replace(/^0+(?=\d)/, '');
+      return String(parsed);
+    }
+
+    return raw;
   }
 
   async generate({ site, secret, counter = '0' }) {
@@ -46,7 +99,8 @@ export class PasswordGenerator {
     }
 
     const normalizedSite = PasswordGenerator.normalizeSite(site);
-    const combined = `${normalizedSite}|${secret}|${counter}`;
+    const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
+    const combined = `${normalizedSite}|${secret}|${normalizedCounter}`;
 
     let hex;
     switch (this.algorithm) {
@@ -70,7 +124,7 @@ export class PasswordGenerator {
     }
 
     const password = this.mapToPassword(hex);
-    return { password, normalizedSite, hex };
+    return { password, normalizedSite, hex, counter: normalizedCounter };
   }
 
   mapToPassword(hex) {
@@ -115,8 +169,30 @@ export class PasswordGenerator {
     return output;
   }
 
-  static buildRecipeSignature({ algorithm, site, counter, length, policyOn, compatMode }) {
-    return `${algorithm}|${site}|${counter}|${length}|${policyOn}|${compatMode}`;
+  static sanitizeParameter(value, defaultValue) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return defaultValue;
+    return parsed;
+  }
+
+  static normalizeParameters(parameters = {}) {
+    const normalized = {
+      iterations: this.sanitizeParameter(parameters.iterations, DEFAULT_PARAMETERS.iterations),
+      argonMem: this.sanitizeParameter(parameters.argonMem, DEFAULT_PARAMETERS.argonMem),
+      scryptN: this.sanitizeParameter(parameters.scryptN, DEFAULT_PARAMETERS.scryptN)
+    };
+    return normalized;
+  }
+
+  static buildRecipeSignature({ algorithm, site, counter, length, policyOn, compatMode, parameters = {} }) {
+    const normalizedCounter = this.normalizeCounter(counter);
+    const normalizedParameters = this.normalizeParameters(parameters);
+    const parameterSignature = [
+      `iterations=${normalizedParameters.iterations}`,
+      `argonMem=${normalizedParameters.argonMem}`,
+      `scryptN=${normalizedParameters.scryptN}`
+    ].join(';');
+    return `${algorithm}|${site}|${normalizedCounter}|${length}|${policyOn}|${compatMode}|${parameterSignature}`;
   }
 
   static async computeRecipeId(details) {
