@@ -552,7 +552,7 @@ async function refreshHistoryList(filter = '') {
 
   if (!filtered.length) {
     const emptyItem = document.createElement('li');
-    emptyItem.style.color = filter ? '#999' : '#555';
+    emptyItem.className = 'history-list__empty';
     emptyItem.textContent = filter ? 'No matching results.' : 'No recipes saved yet.';
     list.appendChild(emptyItem);
     updateStorageInfo();
@@ -562,6 +562,11 @@ async function refreshHistoryList(filter = '') {
   filtered.forEach(recipe => {
     const li = document.createElement('li');
     li.classList.add('history-item');
+
+    const siteInitial = (recipe.site || '').trim().charAt(0);
+    if (siteInitial) {
+      li.dataset.initial = siteInitial.toUpperCase();
+    }
 
     const content = document.createElement('div');
     content.className = 'history-item__content';
