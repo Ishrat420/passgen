@@ -140,20 +140,29 @@ async function handleGenerate() {
   const argonMem = parseInt(document.getElementById('argonMem').value, 10);
   const scryptN = parseInt(document.getElementById('scryptN').value, 10);
 
-  resetUI({ clearPassword: true, clearRecipe: true });
-
   if (!site || !secret) {
-    resetUI({ showError: 'Please enter website and secret.', clearRecipe: true });
+    const missingFields = [];
+    if (!site) missingFields.push('website');
+    if (!secret) missingFields.push('secret');
+
+    const messagePrefix = 'Please enter ';
+    const message =
+      missingFields.length === 1
+        ? `${messagePrefix}${missingFields[0]}.`
+        : `${messagePrefix}website and secret.`;
+
+    showValidationError(message);
     return;
   }
 
   if (!Number.isInteger(length) || length < MIN_PASSWORD_LENGTH || length > MAX_PASSWORD_LENGTH) {
-    resetUI({
-      showError: `Password length must be an integer between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH}.`,
-      clearRecipe: true
-    });
+    showValidationError(
+      `Password length must be an integer between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH}.`
+    );
     return;
   }
+
+  resetUI({ clearPassword: true, clearRecipe: true });
 
   try {
     const generator = new PasswordGenerator({
@@ -259,16 +268,22 @@ function scheduleAutoHide() {
 }
 
 function resetUI({ clearPassword = false, clearRecipe = false, showError = '' } = {}) {
+  clearTimeout(hideTimer);
   const resultDiv = document.getElementById('result');
   const passwordSpan = document.getElementById('password');
   const recipeInfo = document.getElementById('recipeInfo');
   const diversityWarn = document.getElementById('diversityWarning');
   const copyBtn = document.getElementById('copyBtn');
   const explainBox = document.getElementById('explainBox');
+  const explainBtn = document.getElementById('explainBtn');
 
   resultDiv.style.display = 'block';
   diversityWarn.style.display = 'none';
   explainBox.style.display = 'none';
+  if (explainBtn) {
+    explainBtn.style.display = 'inline-block';
+    explainBtn.disabled = false;
+  }
 
   if (clearPassword) passwordSpan.innerText = showError || '';
   if (clearRecipe) recipeInfo.innerText = '';
@@ -277,10 +292,17 @@ function resetUI({ clearPassword = false, clearRecipe = false, showError = '' } 
     passwordSpan.innerText = `⚠️ ${showError}`;
     passwordSpan.style.color = '#d33';
     copyBtn.style.display = 'none';
+    resultDiv.classList.remove('result-hidden');
+    resultDiv.classList.add('result-visible');
   } else {
     passwordSpan.style.color = '';
     copyBtn.style.display = 'inline-block';
   }
+}
+
+function showValidationError(message) {
+  resetUI({ clearPassword: true, clearRecipe: true, showError: message });
+  lastGeneratedPassword = '';
 }
 
 function initToggleExclusivity({ onStateChange } = {}) {
