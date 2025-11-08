@@ -41,12 +41,30 @@ export class PasswordGenerator {
   }
 
   static normalizeSite(site) {
+    const canonicalize = value => {
+      if (value == null) return '';
+      let normalized = String(value).toLowerCase().trim().replace(/^www\./, '');
+
+      // Align bare inputs like "facebook" with their common ".com" hostname so
+      // both generate the same password. Only strip ".com" when it is the sole
+      // suffix (e.g. "example.com"), preserving other subdomains such as
+      // "mail.example.com".
+      const dotMatches = normalized.match(/\./g) || [];
+      if (dotMatches.length === 1 && normalized.endsWith('.com')) {
+        normalized = normalized.slice(0, -4);
+      }
+
+      return normalized;
+    };
+
+    const rawSite = site == null ? '' : String(site);
+
     try {
-      let input = site.trim();
+      let input = rawSite.trim();
       if (!input.includes('://')) input = 'https://' + input;
-      return new URL(input).hostname.toLowerCase().replace(/^www\./, '');
+      return canonicalize(new URL(input).hostname);
     } catch {
-      return site.toLowerCase().trim();
+      return canonicalize(rawSite);
     }
   }
 
