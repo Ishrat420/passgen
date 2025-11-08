@@ -127,7 +127,7 @@ body {
 .field-input.is-filled {
   background: #fbfbfb;
   border-color: #cfcfcf;
-  box-shadow: inset 0 1px 1px rgba(17, 17, 17, 0.04);
+  box-shadow: inset 0 1px 1px rgba(17, 17, 17, 0.01);
 }
 
 .field-input:focus {
