@@ -18,7 +18,7 @@ let lastGeneratedPassword = '';
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 50;
 const SECRET_REQUIREMENT_MESSAGE =
-  'Master secret must be at least 8 characters long and include one lowercase letter, one uppercase letter, one number, and one symbol.';
+  'Must contain at least one uppercase, one lowercase, one number and at least 8 characters.';
 
 let userPreferences = {};
 let toggleController = null;
