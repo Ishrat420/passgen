@@ -552,7 +552,7 @@ async function refreshHistoryList(filter = '') {
 
   if (!filtered.length) {
     const emptyItem = document.createElement('li');
-    emptyItem.style.color = filter ? '#999' : '#555';
+    emptyItem.className = 'history-item history-item--empty';
     emptyItem.textContent = filter ? 'No matching results.' : 'No recipes saved yet.';
     list.appendChild(emptyItem);
     updateStorageInfo();
@@ -582,18 +582,7 @@ async function refreshHistoryList(filter = '') {
 
     const shortId = recipe.shortId || (recipe.id ? recipe.id.slice(0, 8) : 'unknown');
     const parameterSettings = PasswordGenerator.normalizeParameters(recipe.parameters);
-    const tuningParts = [];
-    if (recipe.algorithm === 'PBKDF2-SHA256') {
-      tuningParts.push(`iter=${parameterSettings.iterations}`);
-    } else if (recipe.algorithm === 'Argon2id') {
-      tuningParts.push(`mem=${parameterSettings.argonMem}MB`);
-    } else if (recipe.algorithm === 'scrypt') {
-      tuningParts.push(`N=${parameterSettings.scryptN}`);
-    } else if (parameterSettings) {
-      tuningParts.push(
-        `iter=${parameterSettings.iterations},mem=${parameterSettings.argonMem},N=${parameterSettings.scryptN}`
-      );
-    }
+    const tuningParts = formatRecipeTuning(recipe.algorithm, parameterSettings);
 
     const detailParts = [
       `ID: ${shortId}`,
@@ -603,12 +592,17 @@ async function refreshHistoryList(filter = '') {
     ];
 
     if (tuningParts.length) {
-      detailParts.splice(3, 0, `Tuning: ${tuningParts.join(', ')}`);
+      detailParts.splice(3, 0, `Tuning: ${tuningParts.join(' · ')}`);
     }
 
-    const details = document.createElement('small');
-    details.textContent = detailParts.join(' | ');
-    content.appendChild(details);
+    const meta = document.createElement('div');
+    meta.className = 'history-item__meta';
+    detailParts.forEach(part => {
+      const metaItem = document.createElement('span');
+      metaItem.textContent = part;
+      meta.appendChild(metaItem);
+    });
+    content.appendChild(meta);
 
     li.appendChild(content);
 
@@ -636,6 +630,43 @@ async function refreshHistoryList(filter = '') {
   });
 
   updateStorageInfo();
+}
+
+function formatRecipeTuning(algorithm, parameters = {}) {
+  const normalized = PasswordGenerator.normalizeParameters(parameters);
+  const { iterations, argonMem, scryptN } = normalized;
+
+  const parts = [];
+
+  const appendPart = (label, rawValue, suffix = '') => {
+    if (rawValue === undefined || rawValue === null || rawValue === '') {
+      return;
+    }
+
+    const numericValue = Number(rawValue);
+    const formattedValue = Number.isFinite(numericValue) ? numericValue.toLocaleString() : String(rawValue);
+    parts.push(`${label}${formattedValue}${suffix}`);
+  };
+
+  switch (algorithm) {
+    case 'PBKDF2-SHA256':
+      appendPart('Iterations: ', iterations);
+      break;
+    case 'Argon2id':
+      appendPart('Iterations: ', iterations);
+      appendPart('Memory: ', argonMem, ' MB');
+      break;
+    case 'scrypt':
+      appendPart('N: ', scryptN);
+      break;
+    default:
+      appendPart('Iterations: ', iterations);
+      appendPart('Memory: ', argonMem, ' MB');
+      appendPart('N: ', scryptN);
+      break;
+  }
+
+  return parts;
 }
 
 function createHistoryActionButton({ icon, label, onClick, disabled = false }) {
