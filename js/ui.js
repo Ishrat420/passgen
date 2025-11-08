@@ -143,7 +143,17 @@ async function handleGenerate() {
   resetUI({ clearPassword: true, clearRecipe: true });
 
   if (!site || !secret) {
-    resetUI({ showError: 'Please enter website and secret.', clearRecipe: true });
+    const missingFields = [];
+    if (!site) missingFields.push('website');
+    if (!secret) missingFields.push('secret');
+
+    const messagePrefix = '⚠️ Please enter ';
+    const message =
+      missingFields.length === 1
+        ? `${messagePrefix}${missingFields[0]}.`
+        : `${messagePrefix}website and secret.`;
+
+    resetUI({ showError: message, clearRecipe: true });
     return;
   }
 
