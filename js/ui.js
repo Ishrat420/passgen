@@ -9,13 +9,34 @@ import {
   getRegistryEntry
 } from './storage.js';
 import { initSyncUI } from './sync.js';
+import { loadPreferences, savePreferences, clearPreferences } from './preferences.js';
 
 let hideTimer = null;
 let registryFadeTimer = null;
 let lastGeneratedPassword = '';
 
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 50;
+
+let userPreferences = {};
+let toggleController = null;
+
 window.addEventListener('DOMContentLoaded', () => {
-  initToggleExclusivity();
+  userPreferences = loadPreferences();
+  applyStoredTogglePreferences();
+  toggleController = initToggleExclusivity({
+    onStateChange: state => {
+      if (
+        userPreferences.policyToggle !== state.policyOn ||
+        userPreferences.compatToggle !== state.compatMode
+      ) {
+        userPreferences.policyToggle = state.policyOn;
+        userPreferences.compatToggle = state.compatMode;
+        persistPreferences();
+      }
+    }
+  });
+  initPreferencePersistence();
   initEventHandlers();
   setupReactiveFields();
   refreshHistoryList();
@@ -61,11 +82,9 @@ async function handleGenerate() {
     return;
   }
 
-  const MIN_LENGTH = 8;
-  const MAX_LENGTH = 50;
-  if (!Number.isInteger(length) || length < MIN_LENGTH || length > MAX_LENGTH) {
+  if (!Number.isInteger(length) || length < MIN_PASSWORD_LENGTH || length > MAX_PASSWORD_LENGTH) {
     resetUI({
-      showError: `Password length must be an integer between ${MIN_LENGTH} and ${MAX_LENGTH}.`,
+      showError: `Password length must be an integer between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH}.`,
       clearRecipe: true
     });
     return;
@@ -195,11 +214,13 @@ function resetUI({ clearPassword = false, clearRecipe = false, showError = '' } 
   }
 }
 
-function initToggleExclusivity() {
+function initToggleExclusivity({ onStateChange } = {}) {
   const policyToggle = document.getElementById('policyToggle');
   const compatToggle = document.getElementById('compatToggle');
   const policyLabel = document.querySelector('label[for="policyToggle"]');
   const compatLabel = document.querySelector('label[for="compatToggle"]');
+  const policyHint = document.getElementById('policyHint');
+  const compatHint = document.getElementById('compatHint');
 
   const policyLock = createLockIcon();
   const compatLock = createLockIcon();
@@ -211,19 +232,42 @@ function initToggleExclusivity() {
     updateToggleVisual(compatToggle, compatLabel, compatLock);
   };
 
-  policyToggle.addEventListener('change', () => {
+  const emitState = () => {
+    onStateChange?.({
+      policyOn: policyToggle.checked,
+      compatMode: compatToggle.checked
+    });
+  };
+
+  const applyExclusivity = () => {
     compatToggle.disabled = policyToggle.checked;
     if (policyToggle.checked) compatToggle.checked = false;
+
+    policyToggle.disabled = compatToggle.checked;
+    if (compatToggle.checked) policyToggle.checked = false;
+
+    if (policyHint) policyHint.style.display = compatToggle.disabled ? 'block' : 'none';
+    if (compatHint) compatHint.style.display = policyToggle.disabled ? 'block' : 'none';
+
     updateUI();
+  };
+
+  const enforceState = ({ notify = true } = {}) => {
+    applyExclusivity();
+    if (notify) emitState();
+  };
+
+  policyToggle.addEventListener('change', () => {
+    enforceState();
   });
 
   compatToggle.addEventListener('change', () => {
-    policyToggle.disabled = compatToggle.checked;
-    if (compatToggle.checked) policyToggle.checked = false;
-    updateUI();
+    enforceState();
   });
 
-  updateUI();
+  enforceState();
+
+  return { enforceState };
 }
 
 function createLockIcon() {
@@ -401,6 +445,10 @@ async function handleResetAppData() {
 
   try {
     await clearAllData();
+    clearPreferences();
+    userPreferences = {};
+    resetPreferenceDefaults();
+    toggleController?.enforceState({ notify: false });
     await refreshHistoryList();
     const registryMsg = document.getElementById('registryMessage');
     registryMsg.style.display = 'none';
@@ -488,4 +536,172 @@ async function updateStorageInfo() {
     const quotaMB = (quota / 1024 / 1024).toFixed(0);
     document.getElementById('storageInfo').textContent = `Storage used: ${usedMB} MB / ${quotaMB} MB`;
   }
+}
+
+function initPreferencePersistence() {
+  let shouldPersist = false;
+
+  const registerField = ({ key, element, applyStored, readValue, events = ['change'] }) => {
+    if (!element) return;
+
+    if (Object.prototype.hasOwnProperty.call(userPreferences, key)) {
+      const sanitized = applyStored(element, userPreferences[key]);
+      if (sanitized === undefined) {
+        delete userPreferences[key];
+        shouldPersist = true;
+      } else if (sanitized !== userPreferences[key]) {
+        userPreferences[key] = sanitized;
+        shouldPersist = true;
+      }
+    }
+
+    const handler = () => {
+      const value = readValue(element);
+      if (value === undefined) {
+        if (Object.prototype.hasOwnProperty.call(userPreferences, key)) {
+          delete userPreferences[key];
+          persistPreferences();
+        }
+        return;
+      }
+
+      if (userPreferences[key] !== value) {
+        userPreferences[key] = value;
+        persistPreferences();
+      }
+    };
+
+    events.forEach(event => element.addEventListener(event, handler));
+  };
+
+  registerField({
+    key: 'algorithm',
+    element: document.getElementById('algorithm'),
+    applyStored: (el, stored) => {
+      if (typeof stored !== 'string') return el.value;
+      const hasOption = Array.from(el.options).some(option => option.value === stored);
+      if (hasOption) {
+        el.value = stored;
+        return stored;
+      }
+      return el.value;
+    },
+    readValue: el => el.value
+  });
+
+  registerField({
+    key: 'length',
+    element: document.getElementById('length'),
+    applyStored: (el, stored) => applyNumericPreference(el, stored, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH),
+    readValue: el => readNumericPreference(el, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH)
+  });
+
+  registerField({
+    key: 'iterations',
+    element: document.getElementById('iterations'),
+    applyStored: (el, stored) => applyNumericPreference(el, stored, 10000),
+    readValue: el => readNumericPreference(el, 10000)
+  });
+
+  registerField({
+    key: 'argonMem',
+    element: document.getElementById('argonMem'),
+    applyStored: (el, stored) => applyNumericPreference(el, stored, 8),
+    readValue: el => readNumericPreference(el, 8)
+  });
+
+  registerField({
+    key: 'scryptN',
+    element: document.getElementById('scryptN'),
+    applyStored: (el, stored) => applyNumericPreference(el, stored, 1024),
+    readValue: el => readNumericPreference(el, 1024)
+  });
+
+  const advancedDetails = document.querySelector('.advanced-card details');
+  if (advancedDetails) {
+    if (Object.prototype.hasOwnProperty.call(userPreferences, 'advancedOpen')) {
+      advancedDetails.open = Boolean(userPreferences.advancedOpen);
+    }
+
+    advancedDetails.addEventListener('toggle', () => {
+      userPreferences.advancedOpen = advancedDetails.open;
+      persistPreferences();
+    });
+  }
+
+  if (shouldPersist) persistPreferences();
+}
+
+function applyStoredTogglePreferences() {
+  const policyToggle = document.getElementById('policyToggle');
+  const compatToggle = document.getElementById('compatToggle');
+  if (!policyToggle || !compatToggle) return;
+
+  if (Object.prototype.hasOwnProperty.call(userPreferences, 'policyToggle')) {
+    policyToggle.checked = Boolean(userPreferences.policyToggle);
+  }
+  if (Object.prototype.hasOwnProperty.call(userPreferences, 'compatToggle')) {
+    compatToggle.checked = Boolean(userPreferences.compatToggle);
+  }
+}
+
+function applyNumericPreference(element, stored, min, max = Number.POSITIVE_INFINITY) {
+  const parsed = parseInteger(stored);
+  if (parsed === null) return readNumericPreference(element, min, max);
+  const clamped = clamp(parsed, min, max);
+  element.value = clamped;
+  return clamped;
+}
+
+function readNumericPreference(element, min, max = Number.POSITIVE_INFINITY) {
+  const parsed = parseInteger(element.value);
+  if (parsed === null) return undefined;
+  const clamped = clamp(parsed, min, max);
+  if (clamped !== parsed) {
+    element.value = clamped;
+  }
+  return clamped;
+}
+
+function parseInteger(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return value;
+  let result = value;
+  if (Number.isFinite(min)) result = Math.max(result, min);
+  if (Number.isFinite(max)) result = Math.min(result, max);
+  return result;
+}
+
+function persistPreferences() {
+  savePreferences(userPreferences);
+}
+
+function resetPreferenceDefaults() {
+  const algorithm = document.getElementById('algorithm');
+  if (algorithm) algorithm.value = 'PBKDF2-SHA256';
+
+  const length = document.getElementById('length');
+  if (length) length.value = '16';
+
+  const policyToggle = document.getElementById('policyToggle');
+  const compatToggle = document.getElementById('compatToggle');
+  if (policyToggle) policyToggle.checked = true;
+  if (compatToggle) compatToggle.checked = false;
+
+  const iterations = document.getElementById('iterations');
+  if (iterations) iterations.value = '100000';
+
+  const argonMem = document.getElementById('argonMem');
+  if (argonMem) argonMem.value = '64';
+
+  const scryptN = document.getElementById('scryptN');
+  if (scryptN) scryptN.value = '16384';
+
+  const advancedDetails = document.querySelector('.advanced-card details');
+  if (advancedDetails) advancedDetails.open = false;
 }
