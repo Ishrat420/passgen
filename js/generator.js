@@ -4,6 +4,12 @@ const DEFAULT_LENGTH = 16;
 const MIN_LENGTH = 8;
 const MAX_LENGTH = 50;
 
+const DEFAULT_PARAMETERS = Object.freeze({
+  iterations: 100000,
+  argonMem: 64,
+  scryptN: 16384
+});
+
 const CHARSETS = {
   lowers: 'abcdefghijklmnopqrstuvwxyz',
   uppers: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
@@ -31,11 +37,7 @@ export class PasswordGenerator {
     }
     this.policyOn = policyOn;
     this.compatMode = compatMode;
-    this.parameters = {
-      iterations: parameters.iterations ?? 100000,
-      argonMem: parameters.argonMem ?? 64,
-      scryptN: parameters.scryptN ?? 16384
-    };
+    this.parameters = PasswordGenerator.normalizeParameters(parameters);
   }
 
   static normalizeSite(site) {
@@ -149,9 +151,30 @@ export class PasswordGenerator {
     return output;
   }
 
-  static buildRecipeSignature({ algorithm, site, counter, length, policyOn, compatMode }) {
+  static sanitizeParameter(value, defaultValue) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return defaultValue;
+    return parsed;
+  }
+
+  static normalizeParameters(parameters = {}) {
+    const normalized = {
+      iterations: this.sanitizeParameter(parameters.iterations, DEFAULT_PARAMETERS.iterations),
+      argonMem: this.sanitizeParameter(parameters.argonMem, DEFAULT_PARAMETERS.argonMem),
+      scryptN: this.sanitizeParameter(parameters.scryptN, DEFAULT_PARAMETERS.scryptN)
+    };
+    return normalized;
+  }
+
+  static buildRecipeSignature({ algorithm, site, counter, length, policyOn, compatMode, parameters = {} }) {
     const normalizedCounter = this.normalizeCounter(counter);
-    return `${algorithm}|${site}|${normalizedCounter}|${length}|${policyOn}|${compatMode}`;
+    const normalizedParameters = this.normalizeParameters(parameters);
+    const parameterSignature = [
+      `iterations=${normalizedParameters.iterations}`,
+      `argonMem=${normalizedParameters.argonMem}`,
+      `scryptN=${normalizedParameters.scryptN}`
+    ].join(';');
+    return `${algorithm}|${site}|${normalizedCounter}|${length}|${policyOn}|${compatMode}|${parameterSignature}`;
   }
 
   static async computeRecipeId(details) {

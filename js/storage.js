@@ -61,25 +61,37 @@ async function ensureRecipeIdentifiers(version = {}) {
   const withShort = ensureShortId(version);
   if (!withShort) return withShort;
 
-  const id = typeof withShort.id === 'string' ? withShort.id : '';
-  if (id.length === 64) return withShort;
+  const normalizedParameters = PasswordGenerator.normalizeParameters(withShort.parameters);
+  const hasParameterChanges =
+    !withShort.parameters ||
+    withShort.parameters.iterations !== normalizedParameters.iterations ||
+    withShort.parameters.argonMem !== normalizedParameters.argonMem ||
+    withShort.parameters.scryptN !== normalizedParameters.scryptN;
 
-  if (!withShort.site || !withShort.algorithm || !withShort.length) {
-    return withShort;
+  const baseEntry = hasParameterChanges
+    ? { ...withShort, parameters: normalizedParameters }
+    : withShort;
+
+  const id = typeof baseEntry.id === 'string' ? baseEntry.id : '';
+  if (id.length === 64) return baseEntry;
+
+  if (!baseEntry.site || !baseEntry.algorithm || !baseEntry.length) {
+    return baseEntry;
   }
 
   try {
     const { digest } = await PasswordGenerator.computeRecipeId({
-      algorithm: withShort.algorithm,
-      site: withShort.site,
-      counter: withShort.counter ?? '0',
-      length: withShort.length,
-      policyOn: Boolean(withShort.policyOn),
-      compatMode: Boolean(withShort.compatMode)
+      algorithm: baseEntry.algorithm,
+      site: baseEntry.site,
+      counter: baseEntry.counter ?? '0',
+      length: baseEntry.length,
+      policyOn: Boolean(baseEntry.policyOn),
+      compatMode: Boolean(baseEntry.compatMode),
+      parameters: normalizedParameters
     });
     if (digest && digest.length === 64) {
       return {
-        ...withShort,
+        ...baseEntry,
         id: digest,
         shortId: digest.slice(0, 8)
       };
@@ -88,7 +100,7 @@ async function ensureRecipeIdentifiers(version = {}) {
     // Ignore digest errors and fall back to existing identifier.
   }
 
-  return withShort;
+  return baseEntry;
 }
 
 async function normalizeRegistryEntry(entry) {
@@ -251,6 +263,7 @@ export async function exportRegistrySnapshot() {
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
+        parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version || index + 1
       }));
@@ -297,6 +310,7 @@ export async function importRegistrySnapshot(snapshot = {}) {
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
+        parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version
       });
