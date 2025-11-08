@@ -32,7 +32,8 @@
         <label class="field-label" for="secret">Your Secret / Master Phrase
           <span class="info-tip" data-tip="This is your master phrase/key, remember it and keep it secret! We don't Store it here.">?</span>
         </label>
-        <input id="secret" class="field-input" placeholder="e.g. ChottoMate!42">
+        <input id="secret" class="field-input" placeholder="e.g. ChottoMate!42" aria-describedby="secretError">
+        <small id="secretError" class="field-error" role="alert" aria-live="polite"></small>
       </div>
 
       <div class="field-grid">
