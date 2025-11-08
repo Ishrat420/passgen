@@ -241,6 +241,63 @@ export async function exportRecipes() {
   return fetchRecipes();
 }
 
+export async function deleteRecipeById(recipeId) {
+  if (!recipeId) {
+    return { removed: false, remainingVersions: null, site: null };
+  }
+
+  const storedRecipe = await recipeStore.getItem(recipeId);
+  let site = storedRecipe?.site || '';
+
+  await recipeStore.removeItem(recipeId);
+
+  if (!site) {
+    const registryKeys = await registryStore.keys();
+    for (const key of registryKeys) {
+      const entry = await normalizeRegistryEntry(await registryStore.getItem(key));
+      if (!entry || !Array.isArray(entry.versions)) continue;
+      const hasMatch = entry.versions.some(version => version?.id === recipeId);
+      if (hasMatch) {
+        site = entry.site || '';
+        break;
+      }
+    }
+  }
+
+  if (!site) {
+    return { removed: Boolean(storedRecipe), remainingVersions: null, site: null };
+  }
+
+  const registryEntry = await normalizeRegistryEntry(await registryStore.getItem(site));
+  if (!registryEntry || !Array.isArray(registryEntry.versions)) {
+    await registryStore.removeItem(site);
+    return { removed: true, remainingVersions: 0, site };
+  }
+
+  const remaining = registryEntry.versions.filter(version => version?.id !== recipeId);
+
+  if (!remaining.length) {
+    await registryStore.removeItem(site);
+    return { removed: true, remainingVersions: 0, site };
+  }
+
+  const normalized = [];
+  for (let index = 0; index < remaining.length; index += 1) {
+    const prepared = await ensureRecipeIdentifiers({
+      ...remaining[index],
+      version: index + 1
+    });
+    if (prepared && prepared.id) {
+      normalized.push(prepared);
+    }
+  }
+
+  await registryStore.setItem(site, { site, versions: normalized });
+  await Promise.all(normalized.map(version => recipeStore.setItem(version.id, version)));
+
+  return { removed: true, remainingVersions: normalized.length, site };
+}
+
 export async function exportRegistrySnapshot() {
   const keys = await registryStore.keys();
   const entries = [];

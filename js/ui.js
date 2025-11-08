@@ -6,7 +6,8 @@ import {
   clearAllData,
   importRecipes,
   exportRecipes,
-  getRegistryEntry
+  getRegistryEntry,
+  deleteRecipeById
 } from './storage.js';
 import { initSyncUI } from './sync.js';
 import { loadPreferences, savePreferences, clearPreferences } from './preferences.js';
@@ -560,12 +561,24 @@ async function refreshHistoryList(filter = '') {
 
   filtered.forEach(recipe => {
     const li = document.createElement('li');
+    li.classList.add('history-item');
+
+    const content = document.createElement('div');
+    content.className = 'history-item__content';
+
+    const heading = document.createElement('div');
+    heading.className = 'history-item__heading';
+
     const title = document.createElement('strong');
     title.textContent = recipe.site;
-    li.appendChild(title);
+    heading.appendChild(title);
 
-    li.append(document.createTextNode(` — ${recipe.algorithm} `));
-    li.appendChild(document.createElement('br'));
+    const algorithmLabel = document.createElement('span');
+    algorithmLabel.className = 'history-item__algorithm';
+    algorithmLabel.textContent = recipe.algorithm;
+    heading.appendChild(algorithmLabel);
+
+    content.appendChild(heading);
 
     const shortId = recipe.shortId || (recipe.id ? recipe.id.slice(0, 8) : 'unknown');
     const parameterSettings = PasswordGenerator.normalizeParameters(recipe.parameters);
@@ -595,12 +608,160 @@ async function refreshHistoryList(filter = '') {
 
     const details = document.createElement('small');
     details.textContent = detailParts.join(' | ');
-    li.appendChild(details);
+    content.appendChild(details);
+
+    li.appendChild(content);
+
+    const actions = document.createElement('div');
+    actions.className = 'history-item__actions';
+
+    const recalcButton = createHistoryActionButton({
+      icon: '↻',
+      label: `Reapply settings for ${recipe.site}`,
+      onClick: () => handleRecipeRecalculate(recipe)
+    });
+    actions.appendChild(recalcButton);
+
+    const deleteButton = createHistoryActionButton({
+      icon: '🗑',
+      label: `Delete saved recipe for ${recipe.site}`,
+      disabled: !recipe.id,
+      onClick: () => handleRecipeDelete(recipe)
+    });
+    actions.appendChild(deleteButton);
+
+    li.appendChild(actions);
 
     list.appendChild(li);
   });
 
   updateStorageInfo();
+}
+
+function createHistoryActionButton({ icon, label, onClick, disabled = false }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'history-action-btn';
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  button.disabled = Boolean(disabled);
+
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'history-action-btn__icon';
+  iconSpan.textContent = icon;
+  button.appendChild(iconSpan);
+
+  if (typeof onClick === 'function' && !button.disabled) {
+    button.addEventListener('click', async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        await onClick();
+      } catch (error) {
+        console.error('History action failed', error);
+      }
+    });
+  }
+
+  return button;
+}
+
+async function handleRecipeRecalculate(recipe) {
+  if (!recipe) return;
+  applyRecipeToForm(recipe);
+
+  const secretField = document.getElementById('secret');
+  if (secretField?.value.trim()) {
+    await handleGenerate();
+  } else if (secretField) {
+    secretField.focus();
+  }
+}
+
+async function handleRecipeDelete(recipe) {
+  if (!recipe?.id) return;
+  const siteName = recipe.site || 'this site';
+  const shouldDelete = confirm(`Delete saved recipe for ${siteName}?`);
+  if (!shouldDelete) return;
+
+  try {
+    await deleteRecipeById(recipe.id);
+    const filter = document.getElementById('searchHistory').value.trim();
+    await refreshHistoryList(filter);
+  } catch (error) {
+    console.error('Failed to delete recipe', error);
+    alert('Failed to delete recipe: ' + error.message);
+  }
+}
+
+function applyRecipeToForm(recipe) {
+  if (!recipe) return;
+
+  setTextFieldValue('website', recipe.site || '', 'input');
+
+  const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
+  setTextFieldValue('counter', normalizedCounter, 'change');
+
+  const parsedLength = Number.parseInt(recipe.length, 10);
+  const sanitizedLength = Number.isFinite(parsedLength)
+    ? clamp(parsedLength, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH)
+    : 16;
+  setTextFieldValue('length', sanitizedLength, 'change');
+
+  setSelectFieldValue('algorithm', recipe.algorithm);
+
+  setToggleValue('policyToggle', Boolean(recipe.policyOn));
+  setToggleValue('compatToggle', Boolean(recipe.compatMode));
+
+  const params = PasswordGenerator.normalizeParameters(recipe.parameters);
+  setTextFieldValue('iterations', params.iterations, 'change');
+  setTextFieldValue('argonMem', params.argonMem, 'change');
+  setTextFieldValue('scryptN', params.scryptN, 'change');
+
+  toggleController?.enforceState({ notify: true });
+  hideResultBox();
+}
+
+function setTextFieldValue(id, value, eventType = null) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  const nextValue = value === undefined || value === null ? '' : String(value);
+  if (element.value !== nextValue) {
+    element.value = nextValue;
+    updateFilledState(element);
+    if (eventType) {
+      element.dispatchEvent(new Event(eventType, { bubbles: true }));
+    }
+  } else {
+    updateFilledState(element);
+    if (eventType) {
+      element.dispatchEvent(new Event(eventType, { bubbles: true }));
+    }
+  }
+}
+
+function setSelectFieldValue(id, value) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  const allowedValues = Array.from(element.options).map(option => option.value);
+  const targetValue = allowedValues.includes(String(value)) ? String(value) : element.value;
+  if (element.value !== targetValue) {
+    element.value = targetValue;
+    updateFilledState(element);
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  } else {
+    updateFilledState(element);
+  }
+}
+
+function setToggleValue(id, checked) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  const normalized = Boolean(checked);
+  if (element.checked !== normalized) {
+    element.checked = normalized;
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }
 }
 
 async function handleClearHistory() {
