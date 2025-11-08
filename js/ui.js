@@ -626,7 +626,6 @@ async function explainPassword() {
     `Algorithm tuning: iterations=${parameterSettings.iterations}, argonMem=${parameterSettings.argonMem}, scryptN=${parameterSettings.scryptN}`,
     `Recipe ID: ${recipeId}`,
     '',
-    'Password is calculated with this recipe and the master phrase.',
     'The Recipe ID is a unique fingerprint of all your settings, except your master phrase.'
   ].join('\n');
 }
