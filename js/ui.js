@@ -178,13 +178,16 @@ async function handleGenerate() {
 
     const effectiveLength = generator.length;
 
+    const parameterSettings = generator.parameters;
+
     const { digest: recipeDigest, short: recipeShort } = await PasswordGenerator.computeRecipeId({
       algorithm,
       site: normalizedSite,
       counter: normalizedCounter,
       length: effectiveLength,
       policyOn,
-      compatMode
+      compatMode,
+      parameters: parameterSettings
     });
 
     document.getElementById('recipeInfo').innerText = 'Recipe ID ' + recipeShort;
@@ -199,7 +202,8 @@ async function handleGenerate() {
       counter: normalizedCounter,
       policyOn,
       compatMode,
-      date: new Date().toISOString()
+      date: new Date().toISOString(),
+      parameters: parameterSettings
     };
 
     const registryResult = await recordRecipeUsage(recipeEntry, existingRegistry);
@@ -456,8 +460,33 @@ async function refreshHistoryList(filter = '') {
     li.appendChild(document.createElement('br'));
 
     const shortId = recipe.shortId || (recipe.id ? recipe.id.slice(0, 8) : 'unknown');
+    const parameterSettings = PasswordGenerator.normalizeParameters(recipe.parameters);
+    const tuningParts = [];
+    if (recipe.algorithm === 'PBKDF2-SHA256') {
+      tuningParts.push(`iter=${parameterSettings.iterations}`);
+    } else if (recipe.algorithm === 'Argon2id') {
+      tuningParts.push(`mem=${parameterSettings.argonMem}MB`);
+    } else if (recipe.algorithm === 'scrypt') {
+      tuningParts.push(`N=${parameterSettings.scryptN}`);
+    } else if (parameterSettings) {
+      tuningParts.push(
+        `iter=${parameterSettings.iterations},mem=${parameterSettings.argonMem},N=${parameterSettings.scryptN}`
+      );
+    }
+
+    const detailParts = [
+      `ID: ${shortId}`,
+      `Counter: ${recipe.counter}`,
+      `${recipe.length} chars`,
+      new Date(recipe.date).toLocaleString()
+    ];
+
+    if (tuningParts.length) {
+      detailParts.splice(3, 0, `Tuning: ${tuningParts.join(', ')}`);
+    }
+
     const details = document.createElement('small');
-    details.textContent = `ID: ${shortId} | Counter: ${recipe.counter} | ${recipe.length} chars | ${new Date(recipe.date).toLocaleString()}`;
+    details.textContent = detailParts.join(' | ');
     li.appendChild(details);
 
     list.appendChild(li);
@@ -567,6 +596,11 @@ async function explainPassword() {
   const length = document.getElementById('length').value;
   const policyOn = document.getElementById('policyToggle').checked;
   const compatMode = document.getElementById('compatToggle').checked;
+  const iterations = parseInt(document.getElementById('iterations').value, 10);
+  const argonMem = parseInt(document.getElementById('argonMem').value, 10);
+  const scryptN = parseInt(document.getElementById('scryptN').value, 10);
+
+  const parameterSettings = PasswordGenerator.normalizeParameters({ iterations, argonMem, scryptN });
 
   const normalizedSite = PasswordGenerator.normalizeSite(site);
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
@@ -576,7 +610,8 @@ async function explainPassword() {
     counter: normalizedCounter,
     length,
     policyOn,
-    compatMode
+    compatMode,
+    parameters: parameterSettings
   });
 
   const box = document.getElementById('explainBox');
@@ -588,6 +623,7 @@ async function explainPassword() {
     `Length: ${length}`,
     `Deterministic policy: ${policyOn}`,
     `Compatibility mode: ${compatMode}`,
+    `Algorithm tuning: iterations=${parameterSettings.iterations}, argonMem=${parameterSettings.argonMem}, scryptN=${parameterSettings.scryptN}`,
     `Recipe ID: ${recipeId}`,
     '',
     'Password is calculated with this recipe and the master phrase.',
