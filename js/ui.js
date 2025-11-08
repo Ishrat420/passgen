@@ -18,7 +18,7 @@ let lastGeneratedPassword = '';
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 50;
 const SECRET_REQUIREMENT_MESSAGE =
-  'Must contain at least one uppercase, one lowercase, one number and at least 8 characters.';
+  'Must contain at least 8 characters, including one uppercase, one lowercase and one number.';
 
 let userPreferences = {};
 let toggleController = null;
