@@ -17,6 +17,8 @@ let lastGeneratedPassword = '';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 50;
+const SECRET_REQUIREMENT_MESSAGE =
+  'Must contain at least 8 characters, including one uppercase, one lowercase and one number.';
 
 let userPreferences = {};
 let toggleController = null;
@@ -112,6 +114,8 @@ function initEventHandlers() {
   const generateBtn = document.getElementById('generateBtn');
   generateBtn.addEventListener('click', handleGenerate);
 
+  initSecretFieldValidation();
+
   document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
   document.getElementById('explainBtn').addEventListener('click', explainPassword);
   document.getElementById('clearHistoryBtn').addEventListener('click', handleClearHistory);
@@ -125,7 +129,8 @@ function initEventHandlers() {
 
 async function handleGenerate() {
   const site = document.getElementById('website').value.trim();
-  const secret = document.getElementById('secret').value.trim();
+  const secretInput = document.getElementById('secret');
+  const secret = secretInput.value.trim();
   const counterInput = document.getElementById('counter');
   const counterRaw = counterInput.value.trim() || '0';
   const normalizedCounter = PasswordGenerator.normalizeCounter(counterRaw);
@@ -139,6 +144,16 @@ async function handleGenerate() {
   const iterations = parseInt(document.getElementById('iterations').value, 10);
   const argonMem = parseInt(document.getElementById('argonMem').value, 10);
   const scryptN = parseInt(document.getElementById('scryptN').value, 10);
+
+  const secretStrengthError = getSecretStrengthError(secret);
+
+  if (!secret) {
+    setSecretFieldError('Please enter your master secret.');
+  } else if (secretStrengthError) {
+    setSecretFieldError(secretStrengthError, { silent: true });
+  } else {
+    clearSecretFieldError();
+  }
 
   if (!site || !secret) {
     const missingFields = [];
@@ -154,6 +169,14 @@ async function handleGenerate() {
     showValidationError(message);
     return;
   }
+
+  if (secretStrengthError) {
+    setSecretFieldError(secretStrengthError);
+    showValidationError(secretStrengthError);
+    return;
+  }
+
+  clearSecretFieldError();
 
   if (!Number.isInteger(length) || length < MIN_PASSWORD_LENGTH || length > MAX_PASSWORD_LENGTH) {
     showValidationError(
@@ -303,6 +326,69 @@ function resetUI({ clearPassword = false, clearRecipe = false, showError = '' } 
 function showValidationError(message) {
   resetUI({ clearPassword: true, clearRecipe: true, showError: message });
   lastGeneratedPassword = '';
+}
+
+function getSecretStrengthError(secret) {
+  if (!secret) return '';
+
+  const hasMinLength = secret.length >= 8;
+  const hasLowercase = /[a-z]/.test(secret);
+  const hasUppercase = /[A-Z]/.test(secret);
+  const hasNumber = /[0-9]/.test(secret);
+  const hasSymbol = /[^\w\s]/.test(secret);
+
+  return hasMinLength && hasLowercase && hasUppercase && hasNumber && hasSymbol
+    ? ''
+    : SECRET_REQUIREMENT_MESSAGE;
+}
+
+function setSecretFieldError(message, { silent = false } = {}) {
+  const secretField = document.getElementById('secret');
+  const errorField = document.getElementById('secretError');
+  if (!secretField || !errorField) return;
+
+  const hasError = Boolean(message);
+  secretField.classList.toggle('is-invalid', hasError);
+  if (hasError) {
+    secretField.setAttribute('aria-invalid', 'true');
+  } else {
+    secretField.removeAttribute('aria-invalid');
+  }
+
+  if (typeof secretField.setCustomValidity === 'function') {
+    secretField.setCustomValidity(message || '');
+  }
+
+  errorField.textContent = message || '';
+  errorField.style.display = hasError ? 'block' : 'none';
+
+  if (hasError && !silent && typeof secretField.reportValidity === 'function') {
+    secretField.reportValidity();
+  }
+}
+
+function clearSecretFieldError() {
+  setSecretFieldError('', { silent: true });
+}
+
+function initSecretFieldValidation() {
+  const secretField = document.getElementById('secret');
+  if (!secretField) return;
+
+  secretField.addEventListener('input', () => {
+    const value = secretField.value.trim();
+    if (!value) {
+      clearSecretFieldError();
+      return;
+    }
+
+    const strengthError = getSecretStrengthError(value);
+    if (strengthError) {
+      setSecretFieldError(strengthError, { silent: true });
+    } else {
+      clearSecretFieldError();
+    }
+  });
 }
 
 function initToggleExclusivity({ onStateChange } = {}) {
