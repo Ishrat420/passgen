@@ -147,7 +147,7 @@ async function handleGenerate() {
     if (!site) missingFields.push('website');
     if (!secret) missingFields.push('secret');
 
-    const messagePrefix = '⚠️ Please enter ';
+    const messagePrefix = 'Please enter ';
     const message =
       missingFields.length === 1
         ? `${messagePrefix}${missingFields[0]}.`
@@ -287,6 +287,8 @@ function resetUI({ clearPassword = false, clearRecipe = false, showError = '' } 
     passwordSpan.innerText = `⚠️ ${showError}`;
     passwordSpan.style.color = '#d33';
     copyBtn.style.display = 'none';
+    resultDiv.classList.remove('result-hidden');
+    resultDiv.classList.add('result-visible');
   } else {
     passwordSpan.style.color = '';
     copyBtn.style.display = 'inline-block';
