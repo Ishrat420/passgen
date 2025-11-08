@@ -21,6 +21,70 @@ const MAX_PASSWORD_LENGTH = 50;
 let userPreferences = {};
 let toggleController = null;
 
+function registerFilledStateTracking(element) {
+  if (!element || !(element instanceof HTMLElement)) return;
+  if (element.matches('input[type="checkbox"], input[type="radio"]')) return;
+
+  if (!('initialValue' in element.dataset)) {
+    element.dataset.initialValue = determineInitialValue(element);
+  }
+
+  const updateState = () => updateFilledState(element);
+  element.addEventListener('input', updateState);
+  element.addEventListener('change', updateState);
+  updateFilledState(element);
+}
+
+function determineInitialValue(element) {
+  if (element instanceof HTMLSelectElement) {
+    const explicitDefault = element.querySelector('option[selected]');
+    if (explicitDefault) {
+      return explicitDefault.value ?? explicitDefault.textContent ?? '';
+    }
+    if (element.options.length) {
+      const firstOption = element.options[0];
+      return firstOption.value ?? firstOption.textContent ?? '';
+    }
+    return '';
+  }
+
+  if (element instanceof HTMLInputElement) {
+    if (element.type === 'checkbox' || element.type === 'radio') {
+      return '';
+    }
+    const attrValue = element.getAttribute('value');
+    if (attrValue !== null) return attrValue;
+    return element.defaultValue ?? '';
+  }
+
+  if (element instanceof HTMLTextAreaElement) {
+    const attrValue = element.getAttribute('value');
+    if (attrValue !== null) return attrValue;
+    return element.defaultValue ?? '';
+  }
+
+  return '';
+}
+
+function updateFilledState(element) {
+  if (!element || !(element instanceof HTMLElement)) return;
+  if (element.matches('input[type="checkbox"], input[type="radio"]')) return;
+
+  const currentValue = typeof element.value === 'string' ? element.value.trim() : '';
+  const baseline = element.dataset.initialValue ?? '';
+  const isNumericInput = element instanceof HTMLInputElement && element.type === 'number';
+  const isSelect = element instanceof HTMLSelectElement;
+
+  let shouldMarkFilled;
+  if (isNumericInput || isSelect) {
+    shouldMarkFilled = currentValue !== '' && currentValue !== baseline;
+  } else {
+    shouldMarkFilled = currentValue !== '';
+  }
+
+  element.classList.toggle('is-filled', shouldMarkFilled);
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   userPreferences = loadPreferences();
   applyStoredTogglePreferences();
@@ -66,6 +130,7 @@ async function handleGenerate() {
   const counterRaw = counterInput.value.trim() || '0';
   const normalizedCounter = PasswordGenerator.normalizeCounter(counterRaw);
   counterInput.value = normalizedCounter;
+  updateFilledState(counterInput);
   const algorithm = document.getElementById('algorithm').value;
   const lengthInput = document.getElementById('length').value;
   const length = Number(lengthInput);
@@ -291,6 +356,7 @@ function setupReactiveFields() {
   reactiveFields.forEach(id => {
     const element = document.getElementById(id);
     if (!element) return;
+    registerFilledStateTracking(element);
     element.addEventListener('input', hideResultBox);
     element.addEventListener('change', hideResultBox);
   });
@@ -582,8 +648,10 @@ function initPreferencePersistence() {
       const hasOption = Array.from(el.options).some(option => option.value === stored);
       if (hasOption) {
         el.value = stored;
+        updateFilledState(el);
         return stored;
       }
+      updateFilledState(el);
       return el.value;
     },
     readValue: el => el.value
@@ -650,6 +718,7 @@ function applyNumericPreference(element, stored, min, max = Number.POSITIVE_INFI
   if (parsed === null) return readNumericPreference(element, min, max);
   const clamped = clamp(parsed, min, max);
   element.value = clamped;
+  updateFilledState(element);
   return clamped;
 }
 
@@ -660,6 +729,7 @@ function readNumericPreference(element, min, max = Number.POSITIVE_INFINITY) {
   if (clamped !== parsed) {
     element.value = clamped;
   }
+  updateFilledState(element);
   return clamped;
 }
 
@@ -684,9 +754,11 @@ function persistPreferences() {
 function resetPreferenceDefaults() {
   const algorithm = document.getElementById('algorithm');
   if (algorithm) algorithm.value = 'PBKDF2-SHA256';
+  if (algorithm) updateFilledState(algorithm);
 
   const length = document.getElementById('length');
   if (length) length.value = '16';
+  if (length) updateFilledState(length);
 
   const policyToggle = document.getElementById('policyToggle');
   const compatToggle = document.getElementById('compatToggle');
@@ -695,12 +767,15 @@ function resetPreferenceDefaults() {
 
   const iterations = document.getElementById('iterations');
   if (iterations) iterations.value = '100000';
+  if (iterations) updateFilledState(iterations);
 
   const argonMem = document.getElementById('argonMem');
   if (argonMem) argonMem.value = '64';
+  if (argonMem) updateFilledState(argonMem);
 
   const scryptN = document.getElementById('scryptN');
   if (scryptN) scryptN.value = '16384';
+  if (scryptN) updateFilledState(scryptN);
 
   const advancedDetails = document.querySelector('.advanced-card details');
   if (advancedDetails) advancedDetails.open = false;
