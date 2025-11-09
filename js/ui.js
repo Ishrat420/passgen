@@ -24,6 +24,12 @@ const SECRET_REQUIREMENT_MESSAGE =
 let userPreferences = {};
 let toggleController = null;
 
+const SIMPLE_ALGORITHMS = new Set(['SHA-256', 'SHA-512', 'BLAKE2b-512', 'BLAKE2s-256', 'HMAC-SHA256']);
+
+function isSimpleAlgorithm(algorithm) {
+  return SIMPLE_ALGORITHMS.has(algorithm);
+}
+
 function registerFilledStateTracking(element) {
   if (!element || !(element instanceof HTMLElement)) return;
   if (element.matches('input[type="checkbox"], input[type="radio"]')) return;
@@ -145,6 +151,9 @@ async function handleGenerate() {
   const iterations = parseInt(document.getElementById('iterations').value, 10);
   const argonMem = parseInt(document.getElementById('argonMem').value, 10);
   const scryptN = parseInt(document.getElementById('scryptN').value, 10);
+  const balloonSpace = parseInt(document.getElementById('balloonSpace').value, 10);
+  const balloonTime = parseInt(document.getElementById('balloonTime').value, 10);
+  const balloonDelta = parseInt(document.getElementById('balloonDelta').value, 10);
 
   const secretStrengthError = getSecretStrengthError(secret);
 
@@ -194,7 +203,7 @@ async function handleGenerate() {
       length,
       policyOn,
       compatMode,
-      parameters: { iterations, argonMem, scryptN }
+      parameters: { iterations, argonMem, scryptN, balloonSpace, balloonTime, balloonDelta }
     });
 
     const { password, normalizedSite } = await generator.generate({ site, secret, counter: normalizedCounter });
@@ -463,7 +472,8 @@ function updateToggleVisual(toggle, label, lock) {
 function setupReactiveFields() {
   const reactiveFields = [
     'website', 'secret', 'algorithm', 'counter', 'length',
-    'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN'
+    'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN',
+    'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
 
   reactiveFields.forEach(id => {
@@ -634,7 +644,7 @@ async function refreshHistoryList(filter = '') {
 
 function formatRecipeTuning(algorithm, parameters = {}) {
   const normalized = PasswordGenerator.normalizeParameters(parameters);
-  const { iterations, argonMem, scryptN } = normalized;
+  const { iterations, argonMem, scryptN, balloonSpace, balloonTime, balloonDelta } = normalized;
 
   const parts = [];
 
@@ -658,6 +668,17 @@ function formatRecipeTuning(algorithm, parameters = {}) {
       break;
     case 'scrypt':
       appendPart('N: ', scryptN);
+      break;
+    case 'Balloon-SHA256':
+      appendPart('Space: ', balloonSpace);
+      appendPart('Time: ', balloonTime);
+      appendPart('Δ: ', balloonDelta);
+      break;
+    case 'SHA-256':
+    case 'SHA-512':
+    case 'BLAKE2b-512':
+    case 'BLAKE2s-256':
+    case 'HMAC-SHA256':
       break;
     default:
       appendPart('Iterations: ', iterations);
@@ -748,6 +769,9 @@ function applyRecipeToForm(recipe) {
   setTextFieldValue('iterations', params.iterations, 'change');
   setTextFieldValue('argonMem', params.argonMem, 'change');
   setTextFieldValue('scryptN', params.scryptN, 'change');
+  setTextFieldValue('balloonSpace', params.balloonSpace, 'change');
+  setTextFieldValue('balloonTime', params.balloonTime, 'change');
+  setTextFieldValue('balloonDelta', params.balloonDelta, 'change');
 
   toggleController?.enforceState({ notify: true });
   hideResultBox();
@@ -899,8 +923,18 @@ async function explainPassword() {
   const iterations = parseInt(document.getElementById('iterations').value, 10);
   const argonMem = parseInt(document.getElementById('argonMem').value, 10);
   const scryptN = parseInt(document.getElementById('scryptN').value, 10);
+  const balloonSpace = parseInt(document.getElementById('balloonSpace').value, 10);
+  const balloonTime = parseInt(document.getElementById('balloonTime').value, 10);
+  const balloonDelta = parseInt(document.getElementById('balloonDelta').value, 10);
 
-  const parameterSettings = PasswordGenerator.normalizeParameters({ iterations, argonMem, scryptN });
+  const parameterSettings = PasswordGenerator.normalizeParameters({
+    iterations,
+    argonMem,
+    scryptN,
+    balloonSpace,
+    balloonTime,
+    balloonDelta
+  });
 
   const normalizedSite = PasswordGenerator.normalizeSite(site);
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
@@ -923,7 +957,9 @@ async function explainPassword() {
     `Length: ${length}`,
     `Deterministic policy: ${policyOn}`,
     `Compatibility mode: ${compatMode}`,
-    `Algorithm tuning: iterations=${parameterSettings.iterations}, argonMem=${parameterSettings.argonMem}, scryptN=${parameterSettings.scryptN}`,
+    isSimpleAlgorithm(algorithm)
+      ? 'Algorithm tuning: not applicable'
+      : `Algorithm tuning: iterations=${parameterSettings.iterations}, argonMem=${parameterSettings.argonMem}, scryptN=${parameterSettings.scryptN}, balloonSpace=${parameterSettings.balloonSpace}, balloonTime=${parameterSettings.balloonTime}, balloonDelta=${parameterSettings.balloonDelta}`,
     `Recipe ID: ${recipeId}`,
     '',
     'The Recipe ID is a unique fingerprint of all your settings, except your master phrase.'
@@ -1020,6 +1056,27 @@ function initPreferencePersistence() {
     readValue: el => readNumericPreference(el, 1024)
   });
 
+  registerField({
+    key: 'balloonSpace',
+    element: document.getElementById('balloonSpace'),
+    applyStored: (el, stored) => applyNumericPreference(el, stored, 4, 4096),
+    readValue: el => readNumericPreference(el, 4, 4096)
+  });
+
+  registerField({
+    key: 'balloonTime',
+    element: document.getElementById('balloonTime'),
+    applyStored: (el, stored) => applyNumericPreference(el, stored, 1, 24),
+    readValue: el => readNumericPreference(el, 1, 24)
+  });
+
+  registerField({
+    key: 'balloonDelta',
+    element: document.getElementById('balloonDelta'),
+    applyStored: (el, stored) => applyNumericPreference(el, stored, 1, 8),
+    readValue: el => readNumericPreference(el, 1, 8)
+  });
+
   const advancedDetails = document.querySelector('.advanced-card details');
   if (advancedDetails) {
     if (Object.prototype.hasOwnProperty.call(userPreferences, 'advancedOpen')) {
@@ -1111,6 +1168,18 @@ function resetPreferenceDefaults() {
   const scryptN = document.getElementById('scryptN');
   if (scryptN) scryptN.value = '16384';
   if (scryptN) updateFilledState(scryptN);
+
+  const balloonSpace = document.getElementById('balloonSpace');
+  if (balloonSpace) balloonSpace.value = '64';
+  if (balloonSpace) updateFilledState(balloonSpace);
+
+  const balloonTime = document.getElementById('balloonTime');
+  if (balloonTime) balloonTime.value = '3';
+  if (balloonTime) updateFilledState(balloonTime);
+
+  const balloonDelta = document.getElementById('balloonDelta');
+  if (balloonDelta) balloonDelta.value = '3';
+  if (balloonDelta) updateFilledState(balloonDelta);
 
   const advancedDetails = document.querySelector('.advanced-card details');
   if (advancedDetails) advancedDetails.open = false;

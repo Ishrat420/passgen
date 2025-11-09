@@ -59,10 +59,14 @@
               <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
               <option value="Argon2id">Argon2id</option>
               <option value="scrypt">scrypt</option>
+              <option value="Balloon-SHA256">Balloon-SHA256</option>
             </optgroup>
             <optgroup label="Simple">
               <option value="SHA-256">SHA-256</option>
               <option value="SHA-512">SHA-512</option>
+              <option value="BLAKE2b-512">BLAKE2b-512</option>
+              <option value="BLAKE2s-256">BLAKE2s-256</option>
+              <option value="HMAC-SHA256">HMAC-SHA256</option>
             </optgroup>
           </select>
         </div>
@@ -135,6 +139,18 @@
             <label class="field-label" for="scryptN">scrypt N (CPU cost)</label>
             <input type="number" id="scryptN" class="field-input" value="16384" min="1024">
           </div>
+          <div class="field-group">
+            <label class="field-label" for="balloonSpace">Balloon Space Cost</label>
+            <input type="number" id="balloonSpace" class="field-input" value="64" min="4">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="balloonTime">Balloon Time Cost</label>
+            <input type="number" id="balloonTime" class="field-input" value="3" min="1">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="balloonDelta">Balloon Mixing Rounds (Δ)</label>
+            <input type="number" id="balloonDelta" class="field-input" value="3" min="1">
+          </div>
         </div>
         <button id="resetAppBtn" class="danger-btn" type="button">Reset All App Data</button>
         <small class="advanced-hint">
@@ -171,6 +187,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/blakejs@1.2.1/blake.min.js"></script>
   <script src="js/vendor/qrcode.js"></script>
   <div id="syncModal" class="sync-modal hidden" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
     <div class="sync-modal__dialog">

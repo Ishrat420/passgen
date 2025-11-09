@@ -7,7 +7,10 @@ const MAX_LENGTH = 50;
 const DEFAULT_PARAMETERS = Object.freeze({
   iterations: 100000,
   argonMem: 64,
-  scryptN: 16384
+  scryptN: 16384,
+  balloonSpace: 64,
+  balloonTime: 3,
+  balloonDelta: 3
 });
 
 const CHARSETS = {
@@ -119,6 +122,28 @@ export class PasswordGenerator {
         hex = await CryptoHelper.scrypt(secret, combined, N);
         break;
       }
+      case 'BLAKE2b-512': {
+        hex = await CryptoHelper.blake2b(combined, 64);
+        break;
+      }
+      case 'BLAKE2s-256': {
+        hex = await CryptoHelper.blake2s(combined, 32);
+        break;
+      }
+      case 'HMAC-SHA256': {
+        hex = await CryptoHelper.hmac(secret, combined, 'SHA-256');
+        break;
+      }
+      case 'Balloon-SHA256': {
+        const { balloonSpace, balloonTime, balloonDelta } = this.parameters;
+        hex = await CryptoHelper.balloon(secret, combined, {
+          spaceCost: balloonSpace,
+          timeCost: balloonTime,
+          delta: balloonDelta,
+          hash: 'SHA-256'
+        });
+        break;
+      }
       default:
         hex = await CryptoHelper.digest(combined, this.algorithm);
     }
@@ -169,17 +194,31 @@ export class PasswordGenerator {
     return output;
   }
 
-  static sanitizeParameter(value, defaultValue) {
+  static sanitizeParameter(value, defaultValue, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
     const parsed = Number.parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) return defaultValue;
-    return parsed;
+    if (!Number.isFinite(parsed)) return defaultValue;
+    const clamped = Math.min(Math.max(parsed, min), max);
+    if (!Number.isFinite(clamped) || clamped <= 0) return defaultValue;
+    return clamped;
   }
 
   static normalizeParameters(parameters = {}) {
     const normalized = {
-      iterations: this.sanitizeParameter(parameters.iterations, DEFAULT_PARAMETERS.iterations),
-      argonMem: this.sanitizeParameter(parameters.argonMem, DEFAULT_PARAMETERS.argonMem),
-      scryptN: this.sanitizeParameter(parameters.scryptN, DEFAULT_PARAMETERS.scryptN)
+      iterations: this.sanitizeParameter(parameters.iterations, DEFAULT_PARAMETERS.iterations, { min: 1000, max: 10000000 }),
+      argonMem: this.sanitizeParameter(parameters.argonMem, DEFAULT_PARAMETERS.argonMem, { min: 8, max: 4096 }),
+      scryptN: this.sanitizeParameter(parameters.scryptN, DEFAULT_PARAMETERS.scryptN, { min: 1024, max: 1048576 }),
+      balloonSpace: this.sanitizeParameter(parameters.balloonSpace, DEFAULT_PARAMETERS.balloonSpace, {
+        min: 4,
+        max: 4096
+      }),
+      balloonTime: this.sanitizeParameter(parameters.balloonTime, DEFAULT_PARAMETERS.balloonTime, {
+        min: 1,
+        max: 24
+      }),
+      balloonDelta: this.sanitizeParameter(parameters.balloonDelta, DEFAULT_PARAMETERS.balloonDelta, {
+        min: 1,
+        max: 8
+      })
     };
     return normalized;
   }
@@ -190,7 +229,10 @@ export class PasswordGenerator {
     const parameterSignature = [
       `iterations=${normalizedParameters.iterations}`,
       `argonMem=${normalizedParameters.argonMem}`,
-      `scryptN=${normalizedParameters.scryptN}`
+      `scryptN=${normalizedParameters.scryptN}`,
+      `balloonSpace=${normalizedParameters.balloonSpace}`,
+      `balloonTime=${normalizedParameters.balloonTime}`,
+      `balloonDelta=${normalizedParameters.balloonDelta}`
     ].join(';');
     return `${algorithm}|${site}|${normalizedCounter}|${length}|${policyOn}|${compatMode}|${parameterSignature}`;
   }
