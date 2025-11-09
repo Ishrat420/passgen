@@ -66,7 +66,10 @@ async function ensureRecipeIdentifiers(version = {}) {
     !withShort.parameters ||
     withShort.parameters.iterations !== normalizedParameters.iterations ||
     withShort.parameters.argonMem !== normalizedParameters.argonMem ||
-    withShort.parameters.scryptN !== normalizedParameters.scryptN;
+    withShort.parameters.scryptN !== normalizedParameters.scryptN ||
+    withShort.parameters.balloonSpace !== normalizedParameters.balloonSpace ||
+    withShort.parameters.balloonTime !== normalizedParameters.balloonTime ||
+    withShort.parameters.balloonDelta !== normalizedParameters.balloonDelta;
 
   const baseEntry = hasParameterChanges
     ? { ...withShort, parameters: normalizedParameters }
