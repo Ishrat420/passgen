@@ -187,25 +187,48 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/blakejs@1.2.1/blake.min.js" crossorigin="anonymous"></script>
   <script>
-    if (!window.blakejs) {
-      document.write(
-        '<script src="https://unpkg.com/blakejs@1.2.1/blakejs.min.js" crossorigin="anonymous"><\\/script>'
-      );
-    }
-  </script>
-  <script>
-    if (!window.blakejs) {
-      document.write(
-        '<script src="https://cdnjs.cloudflare.com/ajax/libs/blakejs/1.2.1/blakejs.min.js" crossorigin="anonymous"><\\/script>'
-      );
-    }
-  </script>
-  <script>
-    if (!window.blakejs) {
-      console.warn('BLAKE2 support is still unavailable after trying all CDN mirrors.');
-    }
+    (function loadBlakeFallbacks() {
+      if (window.blakejs) return;
+
+      const mirrors = [
+        'https://cdn.jsdelivr.net/npm/blakejs@1.2.1/blakejs.min.js',
+        'https://unpkg.com/blakejs@1.2.1/dist/blakejs.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/blakejs/1.2.1/blakejs.min.js',
+        'https://lib.baomitu.com/blakejs/1.2.1/blakejs.min.js'
+      ];
+
+      const head = document.head || document.documentElement;
+
+      const tryNext = index => {
+        if (window.blakejs || index >= mirrors.length) {
+          if (!window.blakejs) {
+            console.warn(
+              'BLAKE2 support is still unavailable after trying all CDN mirrors.'
+            );
+          }
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = mirrors[index];
+        script.crossOrigin = 'anonymous';
+        script.referrerPolicy = 'no-referrer';
+
+        const proceedToNext = () => {
+          if (!window.blakejs) {
+            tryNext(index + 1);
+          }
+        };
+
+        script.addEventListener('error', proceedToNext);
+        script.addEventListener('load', proceedToNext);
+
+        head.appendChild(script);
+      };
+
+      tryNext(0);
+    })();
   </script>
   <script src="js/vendor/qrcode.js"></script>
   <div id="syncModal" class="sync-modal hidden" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
