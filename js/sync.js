@@ -519,7 +519,11 @@ async function renderQrCode(canvas, value) {
     QRCode.toCanvas(
       canvas,
       value,
-      { width: 320, margin: 6, minScale: 5, errorCorrectionLevel: 'Q' },
+      {
+        margin: config.margin,
+        scale: config.scale,
+        errorCorrectionLevel: config.errorCorrectionLevel
+      },
       error => {
         if (error) {
           reject(error);
@@ -543,6 +547,8 @@ function selectQrRenderConfig(value) {
   const levels = ['M', 'Q', 'L'];
   const maxDenseModules = 135;
   const maxCanvasSize = 640;
+  const minScale = 3;
+  const minMargin = 1;
   const configs = [];
   let lastError = null;
 
@@ -569,18 +575,36 @@ function selectQrRenderConfig(value) {
   const selected =
     configs.find(config => config.moduleCount <= maxDenseModules) || configs[configs.length - 1];
 
-  let margin = selected.moduleCount > 120 ? 6 : 5;
-  let preferredScale = 6;
-
+  let margin;
   if (selected.moduleCount > 150) {
-    preferredScale = 4;
-  } else if (selected.moduleCount > 110) {
-    preferredScale = 5;
+    margin = 2;
+  } else if (selected.moduleCount > 120) {
+    margin = 3;
+  } else {
+    margin = 4;
   }
 
-  const totalModules = selected.moduleCount + margin * 2;
-  const maxScale = Math.max(4, Math.floor(maxCanvasSize / totalModules));
-  const scale = Math.max(4, Math.min(preferredScale, maxScale));
+  const preferredScale =
+    selected.moduleCount > 150 ? 3 : selected.moduleCount > 110 ? 4 : 5;
+
+  const maxScaleFor = currentMargin => {
+    const totalModules = selected.moduleCount + currentMargin * 2;
+    if (totalModules <= 0) return 0;
+    return Math.floor(maxCanvasSize / totalModules);
+  };
+
+  while (margin > minMargin && maxScaleFor(margin) < minScale) {
+    margin -= 1;
+  }
+
+  const maxScale = maxScaleFor(margin);
+
+  if (maxScale < 1) {
+    throw new Error('Payload exceeds the maximum QR capacity. Copy the payload instead.');
+  }
+
+  const desiredScale = Math.max(minScale, preferredScale);
+  const scale = Math.max(1, Math.min(maxScale, desiredScale));
 
   return {
     margin,
@@ -594,6 +618,12 @@ function clearCanvas(canvas) {
   const context = canvas.getContext('2d');
   if (context) {
     context.clearRect(0, 0, canvas.width || 220, canvas.height || 220);
+  }
+  canvas.width = 0;
+  canvas.height = 0;
+  if (canvas.style) {
+    canvas.style.width = '';
+    canvas.style.height = '';
   }
   if (canvas.dataset) {
     delete canvas.dataset.qrModules;
@@ -659,7 +689,7 @@ async function copyToClipboard(value, button) {
 
 function encodeText(value) {
   const bytes = textEncoder.encode(value);
-  return base32Encode(bytes);
+  return toBase64(bytes);
 }
 
 function decodeText(value) {
@@ -674,7 +704,13 @@ function decodeText(value) {
     }
   }
 
-  const binary = atob(sanitized);
+  let normalized = sanitized.replace(/-/g, '+').replace(/_/g, '/');
+  const paddingNeeded = normalized.length % 4;
+  if (paddingNeeded > 0) {
+    normalized = normalized.padEnd(normalized.length + (4 - paddingNeeded), '=');
+  }
+
+  const binary = atob(normalized);
   const percentEncoded = Array.from(binary)
     .map(char => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
     .join('');
