@@ -558,6 +558,119 @@ details[open] > summary::after {
   box-shadow: none;
 }
 
+.file-sync-panel {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 16px;
+  border: 1px solid #e4e4e4;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.file-sync-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.file-sync-panel__hint {
+  margin: 0.25rem 0 0;
+  color: #4d4d4d;
+  font-size: 0.95rem;
+}
+
+.file-sync-panel__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.file-sync-panel__actions button,
+#fileSyncPauseBtn {
+  background: #ffffff;
+  color: #1e1e1e;
+  border: 1px solid #d9d9d9;
+  border-radius: 12px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.file-sync-panel__actions button:hover,
+.file-sync-panel__actions button:focus-visible,
+#fileSyncPauseBtn:hover,
+#fileSyncPauseBtn:focus-visible {
+  border-color: #b5b5b5;
+  box-shadow: 0 6px 12px -10px rgba(17, 17, 17, 0.2);
+  transform: translateY(-1px);
+}
+
+.file-sync-panel__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.file-sync-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: center;
+}
+
+.file-sync-panel__field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.file-sync-panel__status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.file-sync-panel__file {
+  margin: 0;
+  font-weight: 600;
+  color: #1e1e1e;
+}
+
+.file-sync-panel__message {
+  margin: 0;
+  color: #404040;
+  font-size: 0.95rem;
+}
+
+.file-sync-panel__message--success {
+  color: #1b5e20;
+}
+
+.file-sync-panel__message--error {
+  color: #b71c1c;
+}
+
+.file-sync-panel__message--muted {
+  color: #6f6f6f;
+}
+
+.field-input--compact {
+  padding: 0.45rem 0.65rem;
+  height: auto;
+}
+
+.ghost-btn {
+  background: transparent;
+  border: 1px dashed #ccc;
+  color: #333;
+}
+
 .history-buttons button:focus-visible {
   outline: 2px solid #111;
   outline-offset: 2px;

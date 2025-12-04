@@ -10,6 +10,7 @@ import {
   deleteRecipeById
 } from './storage.js';
 import { initSyncUI } from './sync.js';
+import { initFileSync, notifyFileSyncRegistryChange } from './file-sync.js';
 import { loadPreferences, savePreferences, clearPreferences } from './preferences.js';
 
 let hideTimer = null;
@@ -115,6 +116,7 @@ window.addEventListener('DOMContentLoaded', () => {
   refreshHistoryList();
   updateStorageInfo();
   initSyncUI({ refreshHistoryList, updateStorageInfo });
+  initFileSync({ refreshHistoryList, updateStorageInfo });
 });
 
 function initEventHandlers() {
@@ -252,6 +254,7 @@ async function handleGenerate() {
     updateRegistryMessage(normalizedSite, existingRegistry, registryResult);
 
     await refreshHistoryList(document.getElementById('searchHistory').value.trim());
+    await notifyFileSyncRegistryChange();
     scheduleAutoHide();
   } catch (error) {
     resetUI({ showError: 'Error: ' + error.message, clearRecipe: true });
@@ -740,6 +743,7 @@ async function handleRecipeDelete(recipe) {
     await deleteRecipeById(recipe.id);
     const filter = document.getElementById('searchHistory').value.trim();
     await refreshHistoryList(filter);
+    await notifyFileSyncRegistryChange();
   } catch (error) {
     console.error('Failed to delete recipe', error);
     alert('Failed to delete recipe: ' + error.message);
@@ -852,6 +856,7 @@ async function handleImport() {
       await importRecipes(data);
       alert(`✅ Imported ${data.length} recipes`);
       await refreshHistoryList();
+      await notifyFileSyncRegistryChange();
     } catch (error) {
       alert('❌ Failed to import JSON: ' + error.message);
     }
@@ -869,6 +874,7 @@ async function handleResetAppData() {
     resetPreferenceDefaults();
     toggleController?.enforceState({ notify: false });
     await refreshHistoryList();
+    await notifyFileSyncRegistryChange();
     const registryMsg = document.getElementById('registryMessage');
     registryMsg.style.display = 'none';
     alert('✅ All app data has been cleared successfully!');
@@ -971,7 +977,8 @@ async function updateStorageInfo() {
     const { usage, quota } = await navigator.storage.estimate();
     const usedMB = (usage / 1024 / 1024).toFixed(2);
     const quotaMB = (quota / 1024 / 1024).toFixed(0);
-    document.getElementById('storageInfo').textContent = `Storage used: ${usedMB} MB / ${quotaMB} MB`;
+    document.getElementById('storageInfo').textContent =
+      `Storage used: ${usedMB} MB / ${quotaMB} MB — only recipe metadata is stored, never your master passphrase.`;
   }
 }
 
