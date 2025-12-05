@@ -178,6 +178,19 @@
           </div>
         </div>
 
+        <section
+          id="fileSyncUnavailable"
+          class="file-sync-panel file-sync-panel--collapsed"
+          aria-live="polite"
+          hidden
+        >
+          <h3>Shared file sync not available</h3>
+          <p class="file-sync-panel__message">
+            This browser doesn't support the File System Access API needed for shared JSON sync.
+            Use <a href="#syncBtn">QR sync</a> or <a href="#exportBtn">export/import JSON</a> instead to move your recipes between devices.
+          </p>
+        </section>
+
         <section id="fileSyncPanel" class="file-sync-panel" aria-labelledby="fileSyncHeading">
           <div class="file-sync-panel__header">
             <div>
