@@ -76,7 +76,7 @@ export async function initFileSync({ refreshHistoryList, updateStorageInfo } = {
   if (state.handle) {
     updateFileLabel();
     await syncFromFile('startup');
-    startAutoSync();
+    void startAutoSync();
   } else {
     setStatus(state.status, 'muted');
   }
@@ -177,19 +177,20 @@ async function chooseFileHandle() {
     setStatus('Sync file selected. Requesting permission…', 'muted');
     await ensurePermission(handle, 'readwrite');
     await syncFromFile('file-selected');
-    startAutoSync();
+    void startAutoSync();
   } catch (error) {
     if (error?.name === 'AbortError') return;
     setStatus(`Unable to open sync file: ${error.message}`, 'error');
   }
 }
 
-function startAutoSync() {
+async function startAutoSync() {
   clearInterval(state.autoTimer);
   if (!state.settings.autoSync || !state.handle) return;
 
   const minutes = Number(state.settings.intervalMinutes) || defaultSettings.intervalMinutes;
   const intervalMs = Math.max(minutes, 1) * 60 * 1000;
+  await syncFromFile('auto');
   state.autoTimer = setInterval(() => void syncFromFile('auto'), intervalMs);
 }
 
@@ -200,7 +201,7 @@ function handleAutoToggle(event) {
   updatePauseButton();
   updateSyncControls();
   if (enabled) {
-    startAutoSync();
+    void startAutoSync();
   } else {
     clearInterval(state.autoTimer);
     setStatus('Auto-sync paused. Manual "Sync now" will still pull updates.', 'muted');
@@ -211,7 +212,7 @@ function handleIntervalChange(event) {
   const minutes = Number(event.target.value) || defaultSettings.intervalMinutes;
   state.settings.intervalMinutes = minutes;
   persistSettings();
-  startAutoSync();
+  void startAutoSync();
   setStatus(`Auto-sync interval set to ${minutes} minute${minutes === 1 ? '' : 's'}.`, 'muted');
 }
 
@@ -224,7 +225,7 @@ function handlePauseToggle() {
   updatePauseButton();
   updateSyncControls();
   if (state.settings.autoSync) {
-    startAutoSync();
+    void startAutoSync();
     setStatus('Auto-sync resumed.', 'success');
   } else {
     clearInterval(state.autoTimer);
