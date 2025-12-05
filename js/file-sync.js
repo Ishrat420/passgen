@@ -180,8 +180,30 @@ async function chooseFileHandle() {
     startAutoSync();
   } catch (error) {
     if (error?.name === 'AbortError') return;
+    const blockReason = describeFilePickerBlock(error);
+    if (blockReason) {
+      setStatus(blockReason, 'error');
+      return;
+    }
     setStatus(`Unable to open sync file: ${error.message}`, 'error');
   }
+}
+
+function describeFilePickerBlock(error) {
+  const message = error?.message || '';
+  if (error?.name === 'SecurityError') {
+    return 'Access to the file picker was blocked by this browser or profile. Try a regular window or another browser.';
+  }
+  if (error?.name === 'NotAllowedError' && /permission/i.test(message)) {
+    return 'File picker permission was denied. Re-try and allow access, or switch to QR/JSON sync instead.';
+  }
+  if (/file_picker_filesystem_access_blocked/i.test(message)) {
+    return 'This browser has disabled the File System Access API (policy: file_picker_filesystem_access_blocked). Use another profile or browser to enable shared file sync.';
+  }
+  if (/File System Access API is (denied|blocked)/i.test(message)) {
+    return 'The File System Access API is blocked in this context. Use HTTPS/localhost or a different browser profile.';
+  }
+  return '';
 }
 
 function startAutoSync() {
