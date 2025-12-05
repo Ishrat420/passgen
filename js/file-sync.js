@@ -22,6 +22,7 @@ const state = {
 
 const elements = {
   panel: null,
+  unavailablePanel: null,
   chooseBtn: null,
   syncNowBtn: null,
   autoToggle: null,
@@ -44,6 +45,7 @@ function supportsFileSystemAccess() {
 
 export async function initFileSync({ refreshHistoryList, updateStorageInfo } = {}) {
   elements.panel = document.getElementById('fileSyncPanel');
+  elements.unavailablePanel = document.getElementById('fileSyncUnavailable');
   if (!elements.panel) return;
 
   elements.chooseBtn = document.getElementById('fileSyncChooseBtn');
@@ -57,9 +59,12 @@ export async function initFileSync({ refreshHistoryList, updateStorageInfo } = {
   callbacks = { refreshHistoryList, updateStorageInfo };
 
   if (!supportsFileSystemAccess()) {
-    setStatus('File System Access API not available. Use QR or JSON import/export instead.', 'error');
-    disableControls();
+    showUnsupportedPanel();
     return;
+  }
+
+  if (elements.unavailablePanel) {
+    elements.unavailablePanel.hidden = true;
   }
 
   attachListeners();
@@ -116,6 +121,18 @@ function disableControls() {
   if (elements.autoToggle) elements.autoToggle.disabled = true;
   if (elements.interval) elements.interval.disabled = true;
   if (elements.pauseBtn) elements.pauseBtn.disabled = true;
+}
+
+function showUnsupportedPanel() {
+  state.status = 'Shared file sync is unavailable in this browser. Use QR sync or JSON export/import instead.';
+  state.statusTone = 'error';
+  if (elements.panel) {
+    elements.panel.hidden = true;
+    elements.panel.setAttribute('aria-hidden', 'true');
+  }
+  if (elements.unavailablePanel) {
+    elements.unavailablePanel.hidden = false;
+  }
 }
 
 function updatePauseButton() {
