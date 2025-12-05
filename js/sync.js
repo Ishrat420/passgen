@@ -1,4 +1,5 @@
 import { exportRegistrySnapshot, importRegistrySnapshot } from './storage.js';
+import { notifyFileSyncRegistryChange } from './file-sync.js';
 
 const QUICK_PREFIX = 'PGENQUICK-';
 const PAYLOAD_VERSION = 2;
@@ -228,6 +229,7 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
       if (typeof updateStorageInfo === 'function') {
         await updateStorageInfo();
       }
+      await notifyFileSyncRegistryChange();
     } catch (error) {
       updateQuickImportStatus(`❌ Import failed: ${error.message}`, true);
     }
