@@ -342,13 +342,47 @@ export async function notifyFileSyncRegistryChange() {
       return;
     }
 
+    let existingSnapshot = null;
+    try {
+      const file = await state.handle.getFile();
+      const text = await file.text();
+      if (text.trim()) {
+        existingSnapshot = JSON.parse(text);
+      }
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        await handleMissingFile();
+        return;
+      }
+      if (error instanceof SyntaxError) {
+        setStatus('Sync file is not valid JSON. Please fix or replace it.', 'error');
+        return;
+      }
+      throw error;
+    }
+
+    let mergeResult = null;
+    if (existingSnapshot) {
+      try {
+        mergeResult = await importRegistrySnapshot(existingSnapshot);
+        await callbacks.refreshHistoryList?.();
+        await callbacks.updateStorageInfo?.();
+      } catch (importError) {
+        setStatus(`Failed to merge sync file: ${importError.message}`, 'error');
+        return;
+      }
+    }
+
     const snapshot = await exportRegistrySnapshot();
     const writable = await state.handle.createWritable();
     await writable.write(JSON.stringify(snapshot, null, 2));
     await writable.close();
     const timestamp = new Date().toLocaleTimeString();
+    const mergeMessage = mergeResult
+      ? `Merged ${mergeResult.importedSites} site${mergeResult.importedSites === 1 ? '' : 's'} from sync file and `
+      : '';
     setStatus(
-      `Saved ${snapshot.sites} site${snapshot.sites === 1 ? '' : 's'} to sync file at ${timestamp}.`,
+      `${mergeMessage}saved ${snapshot.sites} site${snapshot.sites === 1 ? '' : 's'} to sync file at ${timestamp}.`,
       'success'
     );
   } catch (error) {
