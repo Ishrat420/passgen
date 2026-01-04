@@ -7,7 +7,9 @@ import {
   importRecipes,
   exportRecipes,
   getRegistryEntry,
-  deleteRecipeById
+  deleteRecipeById,
+  fetchAccountLabels,
+  storeAccountLabel
 } from './storage.js';
 import { initSyncUI } from './sync.js';
 import { initFileSync, notifyFileSyncRegistryChange } from './file-sync.js';
@@ -113,6 +115,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initPreferencePersistence();
   initEventHandlers();
   setupReactiveFields();
+  initAccountLabelSuggestions();
   refreshHistoryList();
   updateStorageInfo();
   initSyncUI({ refreshHistoryList, updateStorageInfo });
@@ -270,6 +273,7 @@ async function handleGenerate() {
 
     const registryResult = await recordRecipeUsage(recipeEntry, existingRegistry);
     updateRegistryMessage(normalizedSite, existingRegistry, registryResult);
+    await rememberAccountLabel(accountLabel);
 
     await refreshHistoryList(document.getElementById('searchHistory').value.trim());
     await notifyFileSyncRegistryChange();
@@ -492,7 +496,7 @@ function updateToggleVisual(toggle, label, lock) {
 
 function setupReactiveFields() {
   const reactiveFields = [
-    'website', 'accountId', 'secret', 'algorithm', 'counter', 'length',
+    'website', 'accountId', 'accountLabel', 'secret', 'algorithm', 'counter', 'length',
     'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN',
     'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
@@ -504,6 +508,39 @@ function setupReactiveFields() {
     element.addEventListener('input', hideResultBox);
     element.addEventListener('change', hideResultBox);
   });
+}
+
+function initAccountLabelSuggestions() {
+  const accountLabelInput = document.getElementById('accountLabel');
+  if (!accountLabelInput) return;
+
+  const refreshSuggestions = () => {
+    void updateAccountLabelSuggestions();
+  };
+
+  accountLabelInput.addEventListener('focus', refreshSuggestions);
+  accountLabelInput.addEventListener('click', refreshSuggestions);
+  refreshSuggestions();
+}
+
+async function updateAccountLabelSuggestions() {
+  const list = document.getElementById('accountLabelList');
+  if (!list) return;
+
+  const labels = await fetchAccountLabels();
+  list.innerHTML = '';
+
+  labels.forEach(label => {
+    const option = document.createElement('option');
+    option.value = label;
+    list.appendChild(option);
+  });
+}
+
+async function rememberAccountLabel(accountLabel) {
+  if (!accountLabel) return;
+  await storeAccountLabel(accountLabel);
+  await updateAccountLabelSuggestions();
 }
 
 function hideResultBox() {
