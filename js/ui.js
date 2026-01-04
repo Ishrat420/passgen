@@ -51,6 +51,9 @@ function parseNumericCounterValue(counter) {
 
 function hasMatchingAccount(version, normalizedAccount) {
   const versionAccount = PasswordGenerator.normalizeAccount(version.account ?? '');
+  if (normalizedAccount && !versionAccount) {
+    return false;
+  }
   return versionAccount === normalizedAccount;
 }
 
@@ -373,7 +376,6 @@ async function handleGenerate() {
       id: recipeDigest,
       shortId: recipeShort,
       site: normalizedSite,
-      account: normalizedAccount,
       algorithm,
       length: effectiveLength,
       counter: normalizedCounter,
@@ -869,7 +871,7 @@ async function refreshHistoryList(filter = '') {
     const parameterSettings = PasswordGenerator.normalizeParameters(recipe.parameters);
     const tuningParts = formatRecipeTuning(recipe.algorithm, parameterSettings);
 
-    const accountSummary = [recipe.accountLabel, recipe.account || '']
+    const accountSummary = [recipe.accountLabel]
       .filter(Boolean)
       .join(' ');
     const detailParts = [
@@ -1030,7 +1032,7 @@ function applyRecipeToForm(recipe) {
   if (!recipe) return;
 
   setTextFieldValue('website', recipe.site || '', 'input');
-  setTextFieldValue('accountId', recipe.account || '', 'input');
+  setTextFieldValue('accountId', '', 'input');
 
   const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
   setTextFieldValue('counter', normalizedCounter, 'change');

@@ -63,13 +63,10 @@ function ensureShortId(version = {}) {
 
 async function normalizeAccountFields(entry = {}) {
   if (!entry) return entry;
-  const { accountId, accountLabel, accountHash, ...rest } = entry;
+  const { account, accountId, accountHash, accountLabel, ...rest } = entry;
   const trimmedLabel = typeof accountLabel === 'string' ? accountLabel.trim() : '';
-  const rawAccount = typeof rest.account === 'string' ? rest.account : (typeof accountId === 'string' ? accountId : '');
-  const normalizedAccount = PasswordGenerator.normalizeAccount(rawAccount);
   const normalized = { ...rest };
   if (trimmedLabel) normalized.accountLabel = trimmedLabel;
-  if (normalizedAccount) normalized.account = normalizedAccount;
   return normalized;
 }
 
@@ -90,6 +87,10 @@ async function ensureRecipeIdentifiers(version = {}) {
   const baseEntry = hasParameterChanges
     ? { ...withShort, parameters: normalizedParameters }
     : withShort;
+  const rawAccount = typeof baseEntry.account === 'string'
+    ? baseEntry.account
+    : (typeof baseEntry.accountId === 'string' ? baseEntry.accountId : '');
+  const normalizedAccount = PasswordGenerator.normalizeAccount(rawAccount);
   const sanitizedEntry = await normalizeAccountFields(baseEntry);
 
   const id = typeof sanitizedEntry.id === 'string' ? sanitizedEntry.id : '';
@@ -103,7 +104,7 @@ async function ensureRecipeIdentifiers(version = {}) {
     const { digest } = await PasswordGenerator.computeRecipeId({
       algorithm: baseEntry.algorithm,
       site: baseEntry.site,
-      account: baseEntry.account ?? '',
+      account: normalizedAccount,
       counter: baseEntry.counter ?? '0',
       length: baseEntry.length,
       policyOn: Boolean(baseEntry.policyOn),
@@ -361,7 +362,6 @@ export async function exportRegistrySnapshot() {
         id: version.id,
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
-        account: version.account ?? '',
         algorithm: version.algorithm,
         length: version.length,
         counter: version.counter,
@@ -410,7 +410,6 @@ export async function importRegistrySnapshot(snapshot = {}) {
         id: version.id,
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
-        account: version.account ?? '',
         algorithm: version.algorithm,
         length: version.length,
         counter: version.counter,
