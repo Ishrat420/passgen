@@ -6,6 +6,9 @@ import { PasswordGenerator } from './generator.js';
 
 const APP_NAME = 'PasswordGen';
 const RECIPE_STORE_NAME = 'recipes';
+const LABELS_STORE_NAME = 'labels';
+const LABELS_KEY = 'accountLabels';
+const MAX_LABELS = 20;
 
 localforage.config({
   name: APP_NAME,
@@ -16,6 +19,7 @@ localforage.config({
 const recipeStore = localforage;
 const historyStore = localforage.createInstance({ storeName: 'history' });
 const registryStore = localforage.createInstance({ storeName: 'registry' });
+const labelStore = localforage.createInstance({ storeName: LABELS_STORE_NAME });
 
 function normalizeCounterValue(counter) {
   const raw = String(counter ?? '0').trim();
@@ -176,7 +180,7 @@ async function normalizeRecipeEntry(entry, key) {
   return normalized;
 }
 
-export const stores = { recipeStore, historyStore, registryStore };
+export const stores = { recipeStore, historyStore, registryStore, labelStore };
 
 export async function getRegistryEntry(site) {
   const entry = await registryStore.getItem(site);
@@ -256,7 +260,32 @@ export async function clearRecipeHistory() {
 }
 
 export async function clearAllData() {
-  await Promise.all([localforage.clear(), historyStore.clear(), registryStore.clear()]);
+  await Promise.all([
+    localforage.clear(),
+    historyStore.clear(),
+    registryStore.clear(),
+    labelStore.clear()
+  ]);
+}
+
+export async function fetchAccountLabels() {
+  const stored = await labelStore.getItem(LABELS_KEY);
+  if (!Array.isArray(stored)) return [];
+  return stored
+    .map(label => (typeof label === 'string' ? label.trim() : ''))
+    .filter(Boolean);
+}
+
+export async function storeAccountLabel(label) {
+  const trimmed = typeof label === 'string' ? label.trim() : '';
+  if (!trimmed) return [];
+
+  const existing = await fetchAccountLabels();
+  const deduped = existing.filter(item => item.toLowerCase() !== trimmed.toLowerCase());
+  const nextLabels = [trimmed, ...deduped].slice(0, MAX_LABELS);
+
+  await labelStore.setItem(LABELS_KEY, nextLabels);
+  return nextLabels;
 }
 
 export async function importRecipes(recipes = []) {

@@ -7,7 +7,9 @@ import {
   importRecipes,
   exportRecipes,
   getRegistryEntry,
-  deleteRecipeById
+  deleteRecipeById,
+  fetchAccountLabels,
+  storeAccountLabel
 } from './storage.js';
 import { initSyncUI } from './sync.js';
 import { initFileSync, notifyFileSyncRegistryChange } from './file-sync.js';
@@ -113,6 +115,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initPreferencePersistence();
   initEventHandlers();
   setupReactiveFields();
+  initAccountLabelSuggestions();
   refreshHistoryList();
   updateStorageInfo();
   initSyncUI({ refreshHistoryList, updateStorageInfo });
@@ -270,6 +273,7 @@ async function handleGenerate() {
 
     const registryResult = await recordRecipeUsage(recipeEntry, existingRegistry);
     updateRegistryMessage(normalizedSite, existingRegistry, registryResult);
+    await rememberAccountLabel(accountLabel);
 
     await refreshHistoryList(document.getElementById('searchHistory').value.trim());
     await notifyFileSyncRegistryChange();
@@ -492,7 +496,7 @@ function updateToggleVisual(toggle, label, lock) {
 
 function setupReactiveFields() {
   const reactiveFields = [
-    'website', 'accountId', 'secret', 'algorithm', 'counter', 'length',
+    'website', 'accountId', 'accountLabel', 'secret', 'algorithm', 'counter', 'length',
     'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN',
     'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
@@ -504,6 +508,143 @@ function setupReactiveFields() {
     element.addEventListener('input', hideResultBox);
     element.addEventListener('change', hideResultBox);
   });
+}
+
+function initAccountLabelSuggestions() {
+  const accountLabelInput = document.getElementById('accountLabel');
+  const suggestionPanel = document.getElementById('accountLabelPanel');
+  if (!accountLabelInput || !suggestionPanel) return;
+
+  let suppressNextOpen = false;
+  let suppressNextFocusOpen = false;
+  suggestionPanel.hidden = true;
+  suggestionPanel.classList.remove('is-open');
+
+  const refreshSuggestions = (event = {}) => {
+    if (suppressNextOpen) {
+      suppressNextOpen = false;
+      void updateAccountLabelSuggestions(accountLabelInput.value, { openPanel: false });
+      return;
+    }
+
+    if (event.type === 'focus' && suppressNextFocusOpen) {
+      suppressNextFocusOpen = false;
+      void updateAccountLabelSuggestions(accountLabelInput.value, { openPanel: false });
+      return;
+    }
+
+    const isFocused = document.activeElement === accountLabelInput;
+    const shouldOpen =
+      event.type === 'focus' ||
+      event.type === 'click' ||
+      (event.type === 'input' && isFocused);
+
+    void updateAccountLabelSuggestions(accountLabelInput.value, { openPanel: shouldOpen });
+  };
+
+  const closePanel = () => {
+    suggestionPanel.hidden = true;
+    suggestionPanel.classList.remove('is-open');
+  };
+
+  const openPanel = () => {
+    if (suggestionPanel.childElementCount > 0) {
+      suggestionPanel.hidden = false;
+      suggestionPanel.classList.add('is-open');
+    }
+  };
+
+  accountLabelInput.addEventListener('focus', refreshSuggestions);
+  accountLabelInput.addEventListener('click', refreshSuggestions);
+  accountLabelInput.addEventListener('input', refreshSuggestions);
+  accountLabelInput.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closePanel();
+    }
+  });
+
+  document.addEventListener('click', event => {
+    if (event.target === accountLabelInput || suggestionPanel.contains(event.target)) return;
+    closePanel();
+  });
+
+  document.addEventListener('focusin', event => {
+    if (event.target === accountLabelInput || suggestionPanel.contains(event.target)) return;
+    closePanel();
+  });
+
+  accountLabelInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (document.activeElement !== accountLabelInput) {
+        closePanel();
+      }
+    }, 150);
+  });
+
+  suggestionPanel.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closePanel();
+      accountLabelInput.focus();
+    }
+  });
+
+  suggestionPanel.addEventListener('focusout', event => {
+    if (!suggestionPanel.contains(event.relatedTarget)) {
+      closePanel();
+    }
+  });
+
+  suggestionPanel.addEventListener('pointerdown', event => {
+    if (event.target.closest('.suggestion-item')) {
+      event.preventDefault();
+    }
+  });
+
+  suggestionPanel.addEventListener('click', event => {
+    const item = event.target.closest('.suggestion-item');
+    if (!item) return;
+    const value = item.dataset.value || '';
+    if (!value) return;
+    accountLabelInput.value = value;
+    updateFilledState(accountLabelInput);
+    suppressNextOpen = true;
+    suppressNextFocusOpen = true;
+    closePanel();
+    accountLabelInput.dispatchEvent(new Event('input', { bubbles: true }));
+    accountLabelInput.focus();
+  });
+}
+
+async function updateAccountLabelSuggestions(filterValue = '', { openPanel = false } = {}) {
+  const panel = document.getElementById('accountLabelPanel');
+  if (!panel) return;
+
+  const labels = await fetchAccountLabels();
+  const filter = filterValue.trim().toLowerCase();
+  const filtered = filter
+    ? labels.filter(label => label.toLowerCase().includes(filter))
+    : labels;
+
+  panel.innerHTML = '';
+
+  filtered.forEach(label => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'suggestion-item';
+    button.dataset.value = label;
+    button.textContent = label;
+    panel.appendChild(button);
+  });
+
+  const isOpen = openPanel && filtered.length;
+  panel.hidden = !isOpen;
+  panel.classList.toggle('is-open', isOpen);
+}
+
+async function rememberAccountLabel(accountLabel) {
+  if (!accountLabel) return;
+  await storeAccountLabel(accountLabel);
+  await updateAccountLabelSuggestions(accountLabel, { openPanel: false });
 }
 
 function hideResultBox() {
