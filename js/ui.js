@@ -518,6 +518,7 @@ function initAccountLabelSuggestions() {
   let suppressNextOpen = false;
   let suppressNextFocusOpen = false;
   suggestionPanel.hidden = true;
+  suggestionPanel.classList.remove('is-open');
 
   const refreshSuggestions = (event = {}) => {
     if (suppressNextOpen) {
@@ -543,11 +544,13 @@ function initAccountLabelSuggestions() {
 
   const closePanel = () => {
     suggestionPanel.hidden = true;
+    suggestionPanel.classList.remove('is-open');
   };
 
   const openPanel = () => {
     if (suggestionPanel.childElementCount > 0) {
       suggestionPanel.hidden = false;
+      suggestionPanel.classList.add('is-open');
     }
   };
 
@@ -633,7 +636,9 @@ async function updateAccountLabelSuggestions(filterValue = '', { openPanel = fal
     panel.appendChild(button);
   });
 
-  panel.hidden = !(openPanel && filtered.length);
+  const isOpen = openPanel && filtered.length;
+  panel.hidden = !isOpen;
+  panel.classList.toggle('is-open', isOpen);
 }
 
 async function rememberAccountLabel(accountLabel) {

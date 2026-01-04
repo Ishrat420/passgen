@@ -151,14 +151,18 @@ body {
 }
 
 .suggestion-panel {
+  display: none;
   margin-top: 0.35rem;
   border-radius: 16px;
   border: 1px solid #d8d8d8;
   background: #ffffff;
   box-shadow: 0 16px 30px -24px rgba(0, 0, 0, 0.4);
-  display: grid;
   gap: 0.35rem;
   padding: 0.5rem;
+}
+
+.suggestion-panel.is-open {
+  display: grid;
 }
 
 .suggestion-item {
