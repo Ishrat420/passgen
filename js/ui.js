@@ -138,6 +138,7 @@ function initEventHandlers() {
 
 async function handleGenerate() {
   const site = document.getElementById('website').value.trim();
+  const account = document.getElementById('account').value.trim();
   const secretInput = document.getElementById('secret');
   const secret = secretInput.value.trim();
   const counterInput = document.getElementById('counter');
@@ -208,7 +209,12 @@ async function handleGenerate() {
       parameters: { iterations, argonMem, scryptN, balloonSpace, balloonTime, balloonDelta }
     });
 
-    const { password, normalizedSite } = await generator.generate({ site, secret, counter: normalizedCounter });
+    const { password, normalizedSite, normalizedAccount } = await generator.generate({
+      site,
+      account,
+      secret,
+      counter: normalizedCounter
+    });
 
     lastGeneratedPassword = password;
 
@@ -227,6 +233,7 @@ async function handleGenerate() {
     const { digest: recipeDigest, short: recipeShort } = await PasswordGenerator.computeRecipeId({
       algorithm,
       site: normalizedSite,
+      account: normalizedAccount,
       counter: normalizedCounter,
       length: effectiveLength,
       policyOn,
@@ -241,6 +248,7 @@ async function handleGenerate() {
       id: recipeDigest,
       shortId: recipeShort,
       site: normalizedSite,
+      account: normalizedAccount,
       algorithm,
       length: effectiveLength,
       counter: normalizedCounter,
@@ -474,7 +482,7 @@ function updateToggleVisual(toggle, label, lock) {
 
 function setupReactiveFields() {
   const reactiveFields = [
-    'website', 'secret', 'algorithm', 'counter', 'length',
+    'website', 'account', 'secret', 'algorithm', 'counter', 'length',
     'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN',
     'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
@@ -754,6 +762,7 @@ function applyRecipeToForm(recipe) {
   if (!recipe) return;
 
   setTextFieldValue('website', recipe.site || '', 'input');
+  setTextFieldValue('account', recipe.account || '', 'input');
 
   const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
   setTextFieldValue('counter', normalizedCounter, 'change');
@@ -920,6 +929,7 @@ function copyToClipboard() {
 
 async function explainPassword() {
   const site = document.getElementById('website').value.trim();
+  const account = document.getElementById('account').value.trim();
   const secret = document.getElementById('secret').value.trim();
   const counter = document.getElementById('counter').value.trim() || '0';
   const algorithm = document.getElementById('algorithm').value;
@@ -943,10 +953,12 @@ async function explainPassword() {
   });
 
   const normalizedSite = PasswordGenerator.normalizeSite(site);
+  const normalizedAccount = PasswordGenerator.normalizeAccount(account);
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
   const { short: recipeId } = await PasswordGenerator.computeRecipeId({
     algorithm,
     site: normalizedSite,
+    account: normalizedAccount,
     counter: normalizedCounter,
     length,
     policyOn,
@@ -959,6 +971,7 @@ async function explainPassword() {
   box.textContent = [
     `Algorithm: ${algorithm}`,
     `Normalized site: ${normalizedSite}`,
+    `Normalized account: ${normalizedAccount || '(none)'}`,
     `Counter: ${normalizedCounter}`,
     `Length: ${length}`,
     `Deterministic policy: ${policyOn}`,

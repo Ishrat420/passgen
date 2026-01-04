@@ -86,6 +86,7 @@ async function ensureRecipeIdentifiers(version = {}) {
     const { digest } = await PasswordGenerator.computeRecipeId({
       algorithm: baseEntry.algorithm,
       site: baseEntry.site,
+      account: baseEntry.account ?? '',
       counter: baseEntry.counter ?? '0',
       length: baseEntry.length,
       policyOn: Boolean(baseEntry.policyOn),
@@ -318,6 +319,7 @@ export async function exportRegistrySnapshot() {
         id: version.id,
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
+        account: version.account ?? '',
         algorithm: version.algorithm,
         length: version.length,
         counter: version.counter,
@@ -365,6 +367,7 @@ export async function importRegistrySnapshot(snapshot = {}) {
         id: version.id,
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
+        account: version.account ?? '',
         algorithm: version.algorithm,
         length: version.length,
         counter: version.counter,
