@@ -150,6 +150,45 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
+.suggestion-panel {
+  margin-top: 0.35rem;
+  border-radius: 16px;
+  border: 1px solid #d8d8d8;
+  background: #ffffff;
+  box-shadow: 0 16px 30px -24px rgba(0, 0, 0, 0.4);
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.5rem;
+}
+
+.suggestion-item {
+  border: none;
+  border-radius: 12px;
+  background: #f4f4f4;
+  color: #111;
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.suggestion-item:hover,
+.suggestion-item:focus-visible {
+  background: #ededed;
+  transform: translateY(-1px);
+}
+
+.suggestion-item__meta {
+  display: block;
+  font-size: 0.72rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 0.2rem;
+}
+
 .select-wrapper {
   position: relative;
 }

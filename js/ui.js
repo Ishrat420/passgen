@@ -512,35 +512,113 @@ function setupReactiveFields() {
 
 function initAccountLabelSuggestions() {
   const accountLabelInput = document.getElementById('accountLabel');
-  if (!accountLabelInput) return;
+  const suggestionPanel = document.getElementById('accountLabelPanel');
+  if (!accountLabelInput || !suggestionPanel) return;
 
-  const refreshSuggestions = () => {
-    void updateAccountLabelSuggestions();
+  const refreshSuggestions = (event = {}) => {
+    const isOpen = suggestionPanel.hidden === false;
+    const shouldOpen = event.type === 'focus' || event.type === 'click' || isOpen;
+    void updateAccountLabelSuggestions(accountLabelInput.value, { openPanel: shouldOpen });
+  };
+
+  const closePanel = () => {
+    suggestionPanel.hidden = true;
+  };
+
+  const openPanel = () => {
+    if (suggestionPanel.childElementCount > 0) {
+      suggestionPanel.hidden = false;
+    }
   };
 
   accountLabelInput.addEventListener('focus', refreshSuggestions);
   accountLabelInput.addEventListener('click', refreshSuggestions);
+  accountLabelInput.addEventListener('input', refreshSuggestions);
+  accountLabelInput.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closePanel();
+    }
+  });
+
+  document.addEventListener('click', event => {
+    if (event.target === accountLabelInput || suggestionPanel.contains(event.target)) return;
+    closePanel();
+  });
+
+  accountLabelInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (document.activeElement !== accountLabelInput) {
+        closePanel();
+      }
+    }, 150);
+  });
+
+  suggestionPanel.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closePanel();
+      accountLabelInput.focus();
+    }
+  });
+
+  suggestionPanel.addEventListener('focusout', event => {
+    if (!suggestionPanel.contains(event.relatedTarget)) {
+      closePanel();
+    }
+  });
+
+  suggestionPanel.addEventListener('pointerdown', event => {
+    if (event.target.closest('.suggestion-item')) {
+      event.preventDefault();
+    }
+  });
+
+  suggestionPanel.addEventListener('click', event => {
+    const item = event.target.closest('.suggestion-item');
+    if (!item) return;
+    const value = item.dataset.value || '';
+    if (!value) return;
+    accountLabelInput.value = value;
+    updateFilledState(accountLabelInput);
+    accountLabelInput.dispatchEvent(new Event('input', { bubbles: true }));
+    closePanel();
+    accountLabelInput.focus();
+  });
+
   refreshSuggestions();
 }
 
-async function updateAccountLabelSuggestions() {
-  const list = document.getElementById('accountLabelList');
-  if (!list) return;
+async function updateAccountLabelSuggestions(filterValue = '', { openPanel = false } = {}) {
+  const panel = document.getElementById('accountLabelPanel');
+  if (!panel) return;
 
   const labels = await fetchAccountLabels();
-  list.innerHTML = '';
+  const filter = filterValue.trim().toLowerCase();
+  const filtered = filter
+    ? labels.filter(label => label.toLowerCase().includes(filter))
+    : labels;
 
-  labels.forEach(label => {
-    const option = document.createElement('option');
-    option.value = label;
-    list.appendChild(option);
+  panel.innerHTML = '';
+
+  filtered.forEach(label => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'suggestion-item';
+    button.dataset.value = label;
+    button.textContent = label;
+    panel.appendChild(button);
   });
+
+  if (filtered.length && openPanel) {
+    panel.hidden = false;
+  } else if (!filtered.length) {
+    panel.hidden = true;
+  }
 }
 
 async function rememberAccountLabel(accountLabel) {
   if (!accountLabel) return;
   await storeAccountLabel(accountLabel);
-  await updateAccountLabelSuggestions();
+  await updateAccountLabelSuggestions(accountLabel, { openPanel: false });
 }
 
 function hideResultBox() {
