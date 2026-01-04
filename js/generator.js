@@ -96,6 +96,20 @@ export class PasswordGenerator {
     return raw;
   }
 
+  static normalizeAccountId(accountId) {
+    if (accountId == null) return '';
+    return String(accountId).trim().toLowerCase();
+  }
+
+  static async computeAccountHash(accountId, { length = 8 } = {}) {
+    const normalized = this.normalizeAccountId(accountId);
+    if (!normalized) return { normalized, hash: '' };
+    const digest = await CryptoHelper.digest(normalized, 'SHA-256');
+    const requestedLength = Number.isFinite(length) ? Math.round(length) : 8;
+    const shortLength = Math.min(8, Math.max(6, requestedLength));
+    return { normalized, hash: digest.slice(0, shortLength) };
+  }
+
   async generate({ site, secret, counter = '0' }) {
     if (/[|]/.test(site) || /[|]/.test(secret)) {
       throw new Error('Inputs may not contain "|" character');

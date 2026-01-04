@@ -138,6 +138,10 @@ function initEventHandlers() {
 
 async function handleGenerate() {
   const site = document.getElementById('website').value.trim();
+  const accountIdInput = document.getElementById('accountId');
+  const accountLabelInput = document.getElementById('accountLabel');
+  const accountId = accountIdInput ? accountIdInput.value.trim() : '';
+  const accountLabel = accountLabelInput ? accountLabelInput.value.trim() : '';
   const secretInput = document.getElementById('secret');
   const secret = secretInput.value.trim();
   const counterInput = document.getElementById('counter');
@@ -237,6 +241,9 @@ async function handleGenerate() {
     document.getElementById('recipeInfo').innerText = 'Recipe ID ' + recipeShort;
 
     const existingRegistry = await getRegistryEntry(normalizedSite);
+    const { hash: accountHash } = accountId
+      ? await PasswordGenerator.computeAccountHash(accountId)
+      : { hash: '' };
     const recipeEntry = {
       id: recipeDigest,
       shortId: recipeShort,
@@ -247,7 +254,9 @@ async function handleGenerate() {
       policyOn,
       compatMode,
       date: new Date().toISOString(),
-      parameters: parameterSettings
+      parameters: parameterSettings,
+      ...(accountLabel ? { accountLabel } : {}),
+      ...(accountHash ? { accountHash } : {})
     };
 
     const registryResult = await recordRecipeUsage(recipeEntry, existingRegistry);
@@ -474,7 +483,7 @@ function updateToggleVisual(toggle, label, lock) {
 
 function setupReactiveFields() {
   const reactiveFields = [
-    'website', 'secret', 'algorithm', 'counter', 'length',
+    'website', 'accountId', 'accountLabel', 'secret', 'algorithm', 'counter', 'length',
     'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN',
     'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
@@ -603,6 +612,11 @@ async function refreshHistoryList(filter = '') {
       `${recipe.length} chars`,
       new Date(recipe.date).toLocaleString()
     ];
+
+    const accountDisplay = recipe.accountLabel || recipe.accountHash;
+    if (accountDisplay) {
+      detailParts.splice(1, 0, `Account: ${accountDisplay}`);
+    }
 
     if (tuningParts.length) {
       detailParts.splice(3, 0, `Tuning: ${tuningParts.join(' · ')}`);
@@ -754,6 +768,7 @@ function applyRecipeToForm(recipe) {
   if (!recipe) return;
 
   setTextFieldValue('website', recipe.site || '', 'input');
+  setTextFieldValue('accountLabel', recipe.accountLabel || '', 'input');
 
   const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
   setTextFieldValue('counter', normalizedCounter, 'change');
