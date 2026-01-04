@@ -206,7 +206,6 @@ function describeFilePickerBlock(error) {
   return '';
 }
 
-function startAutoSync() {
 async function startAutoSync() {
   clearInterval(state.autoTimer);
   if (!state.settings.autoSync || !state.handle) return;
