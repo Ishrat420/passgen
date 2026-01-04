@@ -75,6 +75,11 @@ export class PasswordGenerator {
     return PasswordGenerator.normalizeSite(site);
   }
 
+  static normalizeAccount(account) {
+    if (account == null) return '';
+    return String(account).trim().toLowerCase();
+  }
+
   static normalizeCounter(counter) {
     const raw = String(counter ?? '0').trim();
     if (raw === '') return '0';
@@ -96,21 +101,16 @@ export class PasswordGenerator {
     return raw;
   }
 
-  static normalizeAccountId(accountId) {
-    if (accountId == null) return '';
-    return String(accountId).trim();
-  }
-
-  async generate({ site, secret, counter = '0', accountId = '' }) {
-    const normalizedAccountId = PasswordGenerator.normalizeAccountId(accountId);
-    if (/[|]/.test(site) || /[|]/.test(secret) || /[|]/.test(normalizedAccountId)) {
+  async generate({ site, account = '', secret, counter = '0' }) {
+    if (/[|]/.test(site) || /[|]/.test(secret) || /[|]/.test(account)) {
       throw new Error('Inputs may not contain "|" character');
     }
 
     const normalizedSite = PasswordGenerator.normalizeSite(site);
+    const normalizedAccount = PasswordGenerator.normalizeAccount(account);
     const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
-    const combined = normalizedAccountId
-      ? `${normalizedSite}|${secret}|${normalizedCounter}|${normalizedAccountId}`
+    const combined = normalizedAccount
+      ? `${normalizedSite}|${normalizedAccount}|${secret}|${normalizedCounter}`
       : `${normalizedSite}|${secret}|${normalizedCounter}`;
 
     let hex;
@@ -157,7 +157,7 @@ export class PasswordGenerator {
     }
 
     const password = this.mapToPassword(hex);
-    return { password, normalizedSite, hex, counter: normalizedCounter };
+    return { password, normalizedSite, normalizedAccount, hex, counter: normalizedCounter };
   }
 
   mapToPassword(hex) {
@@ -234,13 +234,14 @@ export class PasswordGenerator {
   static buildRecipeSignature({
     algorithm,
     site,
+    account = '',
     counter,
     length,
     policyOn,
     compatMode,
-    parameters = {},
-    accountHash = ''
+    parameters = {}
   }) {
+    const normalizedAccount = this.normalizeAccount(account);
     const normalizedCounter = this.normalizeCounter(counter);
     const normalizedParameters = this.normalizeParameters(parameters);
     const parameterSignature = [
@@ -251,8 +252,18 @@ export class PasswordGenerator {
       `balloonTime=${normalizedParameters.balloonTime}`,
       `balloonDelta=${normalizedParameters.balloonDelta}`
     ].join(';');
-    const baseSignature = `${algorithm}|${site}|${normalizedCounter}|${length}|${policyOn}|${compatMode}|${parameterSignature}`;
-    return accountHash ? `${baseSignature}|account=${accountHash}` : baseSignature;
+    const signatureParts = [algorithm, site];
+    if (normalizedAccount) {
+      signatureParts.push(normalizedAccount);
+    }
+    signatureParts.push(
+      normalizedCounter,
+      length,
+      policyOn,
+      compatMode,
+      parameterSignature
+    );
+    return signatureParts.join('|');
   }
 
   static async computeRecipeId(details) {
