@@ -96,14 +96,22 @@ export class PasswordGenerator {
     return raw;
   }
 
-  async generate({ site, secret, counter = '0' }) {
-    if (/[|]/.test(site) || /[|]/.test(secret)) {
+  static normalizeAccountId(accountId) {
+    if (accountId == null) return '';
+    return String(accountId).trim();
+  }
+
+  async generate({ site, secret, counter = '0', accountId = '' }) {
+    const normalizedAccountId = PasswordGenerator.normalizeAccountId(accountId);
+    if (/[|]/.test(site) || /[|]/.test(secret) || /[|]/.test(normalizedAccountId)) {
       throw new Error('Inputs may not contain "|" character');
     }
 
     const normalizedSite = PasswordGenerator.normalizeSite(site);
     const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
-    const combined = `${normalizedSite}|${secret}|${normalizedCounter}`;
+    const combined = normalizedAccountId
+      ? `${normalizedSite}|${secret}|${normalizedCounter}|${normalizedAccountId}`
+      : `${normalizedSite}|${secret}|${normalizedCounter}`;
 
     let hex;
     switch (this.algorithm) {
@@ -223,7 +231,16 @@ export class PasswordGenerator {
     return normalized;
   }
 
-  static buildRecipeSignature({ algorithm, site, counter, length, policyOn, compatMode, parameters = {} }) {
+  static buildRecipeSignature({
+    algorithm,
+    site,
+    counter,
+    length,
+    policyOn,
+    compatMode,
+    parameters = {},
+    accountHash = ''
+  }) {
     const normalizedCounter = this.normalizeCounter(counter);
     const normalizedParameters = this.normalizeParameters(parameters);
     const parameterSignature = [
@@ -234,12 +251,22 @@ export class PasswordGenerator {
       `balloonTime=${normalizedParameters.balloonTime}`,
       `balloonDelta=${normalizedParameters.balloonDelta}`
     ].join(';');
-    return `${algorithm}|${site}|${normalizedCounter}|${length}|${policyOn}|${compatMode}|${parameterSignature}`;
+    const baseSignature = `${algorithm}|${site}|${normalizedCounter}|${length}|${policyOn}|${compatMode}|${parameterSignature}`;
+    return accountHash ? `${baseSignature}|account=${accountHash}` : baseSignature;
   }
 
   static async computeRecipeId(details) {
     const signature = typeof details === 'string' ? details : this.buildRecipeSignature(details);
     const digest = await CryptoHelper.digest(signature, 'SHA-256');
     return { signature, digest, short: digest.slice(0, 8) };
+  }
+
+  static async computeAccountHash(accountId) {
+    const normalized = this.normalizeAccountId(accountId);
+    if (!normalized) {
+      return { digest: '', short: '' };
+    }
+    const digest = await CryptoHelper.digest(normalized, 'SHA-256');
+    return { digest, short: digest.slice(0, 8) };
   }
 }

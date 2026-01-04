@@ -29,6 +29,23 @@
       </div>
 
       <div class="field-group">
+        <label class="field-label" for="accountId">Account ID (optional)
+          <span
+            class="info-tip"
+            data-tip="Use Account ID to distinguish multiple logins (work vs personal). Use the counter to rotate passwords for the same login."
+          >?</span>
+        </label>
+        <input id="accountId" class="field-input" placeholder="e.g. work@example.com">
+        <small class="field-helper">Account ID is used for password generation; only a short hash is stored.</small>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="accountLabel">Account label (optional)</label>
+        <input id="accountLabel" class="field-input" placeholder="e.g. Personal or Work">
+        <small class="field-helper">Label is stored locally for your convenience.</small>
+      </div>
+
+      <div class="field-group">
         <label class="field-label" for="secret">Your Secret / Master Phrase
           <span class="info-tip" data-tip="This is your master phrase/key, remember it and keep it secret! We don't Store it here.">?</span>
         </label>
@@ -39,7 +56,7 @@
       <div class="field-grid">
         <div class="field-group">
           <label class="field-label" for="counter">Password Counter
-            <span class="info-tip" data-tip="Starts with 0, Bump this up if you need a new password for the same site!">?</span>
+            <span class="info-tip" data-tip="Starts with 0. Use it to rotate passwords for the same account without changing the Account ID.">?</span>
           </label>
           <input type="number" id="counter" class="field-input" value="0" min="0">
         </div>

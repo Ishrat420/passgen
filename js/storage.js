@@ -83,6 +83,7 @@ async function ensureRecipeIdentifiers(version = {}) {
   }
 
   try {
+    const accountHash = typeof baseEntry.accountHash === 'string' ? baseEntry.accountHash : '';
     const { digest } = await PasswordGenerator.computeRecipeId({
       algorithm: baseEntry.algorithm,
       site: baseEntry.site,
@@ -90,7 +91,8 @@ async function ensureRecipeIdentifiers(version = {}) {
       length: baseEntry.length,
       policyOn: Boolean(baseEntry.policyOn),
       compatMode: Boolean(baseEntry.compatMode),
-      parameters: normalizedParameters
+      parameters: normalizedParameters,
+      accountHash
     });
     if (digest && digest.length === 64) {
       return {
@@ -323,6 +325,8 @@ export async function exportRegistrySnapshot() {
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
+        accountHash: version.accountHash || '',
+        accountLabel: version.accountLabel || '',
         parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version || index + 1
@@ -370,6 +374,8 @@ export async function importRegistrySnapshot(snapshot = {}) {
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
+        accountHash: version.accountHash || '',
+        accountLabel: version.accountLabel || '',
         parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version

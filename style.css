@@ -261,6 +261,13 @@ small {
   color: #555;
 }
 
+.field-helper {
+  display: block;
+  margin-top: 0.35rem;
+  color: #666;
+  font-size: 0.82rem;
+}
+
 details {
   margin-top: 0.5rem;
 }

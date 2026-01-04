@@ -138,6 +138,8 @@ function initEventHandlers() {
 
 async function handleGenerate() {
   const site = document.getElementById('website').value.trim();
+  const accountId = document.getElementById('accountId').value.trim();
+  const accountLabel = document.getElementById('accountLabel').value.trim();
   const secretInput = document.getElementById('secret');
   const secret = secretInput.value.trim();
   const counterInput = document.getElementById('counter');
@@ -208,7 +210,12 @@ async function handleGenerate() {
       parameters: { iterations, argonMem, scryptN, balloonSpace, balloonTime, balloonDelta }
     });
 
-    const { password, normalizedSite } = await generator.generate({ site, secret, counter: normalizedCounter });
+    const { password, normalizedSite } = await generator.generate({
+      site,
+      secret,
+      counter: normalizedCounter,
+      accountId
+    });
 
     lastGeneratedPassword = password;
 
@@ -224,6 +231,8 @@ async function handleGenerate() {
 
     const parameterSettings = generator.parameters;
 
+    const { short: accountHash } = await PasswordGenerator.computeAccountHash(accountId);
+
     const { digest: recipeDigest, short: recipeShort } = await PasswordGenerator.computeRecipeId({
       algorithm,
       site: normalizedSite,
@@ -231,10 +240,13 @@ async function handleGenerate() {
       length: effectiveLength,
       policyOn,
       compatMode,
-      parameters: parameterSettings
+      parameters: parameterSettings,
+      accountHash
     });
 
-    document.getElementById('recipeInfo').innerText = 'Recipe ID ' + recipeShort;
+    document.getElementById('recipeInfo').innerText = accountHash
+      ? `Recipe ID ${recipeShort} · Account #${accountHash}`
+      : 'Recipe ID ' + recipeShort;
 
     const existingRegistry = await getRegistryEntry(normalizedSite);
     const recipeEntry = {
@@ -247,7 +259,9 @@ async function handleGenerate() {
       policyOn,
       compatMode,
       date: new Date().toISOString(),
-      parameters: parameterSettings
+      parameters: parameterSettings,
+      accountHash,
+      accountLabel
     };
 
     const registryResult = await recordRecipeUsage(recipeEntry, existingRegistry);
@@ -474,7 +488,7 @@ function updateToggleVisual(toggle, label, lock) {
 
 function setupReactiveFields() {
   const reactiveFields = [
-    'website', 'secret', 'algorithm', 'counter', 'length',
+    'website', 'accountId', 'accountLabel', 'secret', 'algorithm', 'counter', 'length',
     'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN',
     'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
@@ -597,8 +611,12 @@ async function refreshHistoryList(filter = '') {
     const parameterSettings = PasswordGenerator.normalizeParameters(recipe.parameters);
     const tuningParts = formatRecipeTuning(recipe.algorithm, parameterSettings);
 
+    const accountSummary = [recipe.accountLabel, recipe.accountHash ? `#${recipe.accountHash}` : '']
+      .filter(Boolean)
+      .join(' ');
     const detailParts = [
       `ID: ${shortId}`,
+      ...(accountSummary ? [`Account: ${accountSummary}`] : []),
       `Counter: ${recipe.counter}`,
       `${recipe.length} chars`,
       new Date(recipe.date).toLocaleString()
@@ -754,6 +772,8 @@ function applyRecipeToForm(recipe) {
   if (!recipe) return;
 
   setTextFieldValue('website', recipe.site || '', 'input');
+  setTextFieldValue('accountId', '', 'input');
+  setTextFieldValue('accountLabel', recipe.accountLabel || '', 'input');
 
   const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
   setTextFieldValue('counter', normalizedCounter, 'change');
@@ -920,6 +940,7 @@ function copyToClipboard() {
 
 async function explainPassword() {
   const site = document.getElementById('website').value.trim();
+  const accountId = document.getElementById('accountId').value.trim();
   const secret = document.getElementById('secret').value.trim();
   const counter = document.getElementById('counter').value.trim() || '0';
   const algorithm = document.getElementById('algorithm').value;
@@ -944,6 +965,7 @@ async function explainPassword() {
 
   const normalizedSite = PasswordGenerator.normalizeSite(site);
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
+  const { short: accountHash } = await PasswordGenerator.computeAccountHash(accountId);
   const { short: recipeId } = await PasswordGenerator.computeRecipeId({
     algorithm,
     site: normalizedSite,
@@ -951,7 +973,8 @@ async function explainPassword() {
     length,
     policyOn,
     compatMode,
-    parameters: parameterSettings
+    parameters: parameterSettings,
+    accountHash
   });
 
   const box = document.getElementById('explainBox');
@@ -959,6 +982,7 @@ async function explainPassword() {
   box.textContent = [
     `Algorithm: ${algorithm}`,
     `Normalized site: ${normalizedSite}`,
+    ...(accountHash ? [`Account hash: ${accountHash}`] : []),
     `Counter: ${normalizedCounter}`,
     `Length: ${length}`,
     `Deterministic policy: ${policyOn}`,
