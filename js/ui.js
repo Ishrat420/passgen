@@ -9,7 +9,8 @@ import {
   getRegistryEntry,
   deleteRecipeById,
   fetchAccountLabels,
-  storeAccountLabel
+  storeAccountLabel,
+  fetchRegistrySites
 } from './storage.js';
 import { initSyncUI } from './sync.js';
 import { initFileSync, notifyFileSyncRegistryChange } from './file-sync.js';
@@ -18,6 +19,9 @@ import { loadPreferences, savePreferences, clearPreferences } from './preference
 let hideTimer = null;
 let registryFadeTimer = null;
 let lastGeneratedPassword = '';
+let knownSitesCache = [];
+let knownSitesLoaded = false;
+let siteSuggestionRequestId = 0;
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 50;
@@ -116,6 +120,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initEventHandlers();
   setupReactiveFields();
   initAccountLabelSuggestions();
+  initSiteSuggestions();
   refreshHistoryList();
   updateStorageInfo();
   initSyncUI({ refreshHistoryList, updateStorageInfo });
@@ -273,6 +278,7 @@ async function handleGenerate() {
 
     const registryResult = await recordRecipeUsage(recipeEntry, existingRegistry);
     updateRegistryMessage(normalizedSite, existingRegistry, registryResult);
+    addKnownSite(normalizedSite);
     await rememberAccountLabel(accountLabel);
 
     await refreshHistoryList(document.getElementById('searchHistory').value.trim());
@@ -508,6 +514,168 @@ function setupReactiveFields() {
     element.addEventListener('input', hideResultBox);
     element.addEventListener('change', hideResultBox);
   });
+}
+
+function initSiteSuggestions() {
+  const websiteInput = document.getElementById('website');
+  const suggestionBox = document.getElementById('siteSuggestion');
+  const suggestionText = document.getElementById('siteSuggestionText');
+  const suggestionAction = document.getElementById('siteSuggestionAction');
+  if (!websiteInput || !suggestionBox || !suggestionText || !suggestionAction) return;
+
+  suggestionBox.hidden = true;
+  suggestionText.textContent = '';
+
+  const hideSuggestion = () => {
+    suggestionBox.hidden = true;
+    suggestionText.textContent = '';
+    suggestionBox.dataset.suggestion = '';
+  };
+
+  const showSuggestion = suggestion => {
+    suggestionText.innerHTML = '';
+    suggestionText.append('Did you mean ');
+    const strong = document.createElement('strong');
+    strong.textContent = suggestion;
+    suggestionText.appendChild(strong);
+    suggestionText.append('?');
+    suggestionBox.hidden = false;
+    suggestionBox.dataset.suggestion = suggestion;
+  };
+
+  const refreshSuggestion = async () => {
+    const requestId = ++siteSuggestionRequestId;
+    const rawValue = websiteInput.value.trim();
+    if (!rawValue || rawValue.length < 2) {
+      hideSuggestion();
+      return;
+    }
+
+    await hydrateKnownSites();
+    if (requestId !== siteSuggestionRequestId) return;
+
+    const suggestion = findClosestKnownSite(rawValue, knownSitesCache);
+    if (suggestion) {
+      showSuggestion(suggestion);
+    } else {
+      hideSuggestion();
+    }
+  };
+
+  websiteInput.addEventListener('input', () => {
+    void refreshSuggestion();
+  });
+
+  suggestionAction.addEventListener('click', () => {
+    const suggestion = suggestionBox.dataset.suggestion || '';
+    if (!suggestion) return;
+    websiteInput.value = suggestion;
+    updateFilledState(websiteInput);
+    hideSuggestion();
+    websiteInput.dispatchEvent(new Event('input', { bubbles: true }));
+    websiteInput.focus();
+  });
+
+  websiteInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (document.activeElement !== suggestionAction) {
+        hideSuggestion();
+      }
+    }, 150);
+  });
+}
+
+async function hydrateKnownSites({ force = false } = {}) {
+  if (knownSitesLoaded && !force) return knownSitesCache;
+  try {
+    knownSitesCache = await fetchRegistrySites();
+  } catch {
+    knownSitesCache = [];
+  }
+  knownSitesLoaded = true;
+  return knownSitesCache;
+}
+
+function addKnownSite(site) {
+  const trimmed = typeof site === 'string' ? site.trim() : '';
+  if (!trimmed) return;
+  const exists = knownSitesCache.some(entry => entry.toLowerCase() === trimmed.toLowerCase());
+  if (!exists) {
+    knownSitesCache = [...knownSitesCache, trimmed];
+  }
+}
+
+function findClosestKnownSite(inputValue, knownSites) {
+  if (!inputValue || !Array.isArray(knownSites) || !knownSites.length) return '';
+
+  const normalizedInput = PasswordGenerator.normalizeSite(inputValue);
+  if (!normalizedInput) return '';
+
+  let bestMatch = '';
+  let bestScore = 0;
+
+  for (const site of knownSites) {
+    const normalizedSite = PasswordGenerator.normalizeSite(site);
+    if (!normalizedSite || normalizedSite === normalizedInput) continue;
+    const score = scoreSiteSimilarity(normalizedInput, normalizedSite);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = site;
+    }
+  }
+
+  return bestScore >= 0.78 ? bestMatch : '';
+}
+
+function scoreSiteSimilarity(input, candidate) {
+  if (!input || !candidate) return 0;
+  if (input === candidate) return 1;
+
+  if (
+    candidate.startsWith(input) ||
+    input.startsWith(candidate) ||
+    candidate.includes(input) ||
+    input.includes(candidate)
+  ) {
+    return 0.92;
+  }
+
+  const distance = levenshteinDistance(input, candidate);
+  const maxLength = Math.max(input.length, candidate.length);
+  if (!maxLength) return 0;
+  return 1 - distance / maxLength;
+}
+
+function levenshteinDistance(a = '', b = '') {
+  if (a === b) return 0;
+  const aLength = a.length;
+  const bLength = b.length;
+  if (!aLength) return bLength;
+  if (!bLength) return aLength;
+
+  const previous = new Array(bLength + 1).fill(0);
+  const current = new Array(bLength + 1).fill(0);
+
+  for (let index = 0; index <= bLength; index += 1) {
+    previous[index] = index;
+  }
+
+  for (let i = 1; i <= aLength; i += 1) {
+    current[0] = i;
+    for (let j = 1; j <= bLength; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + cost
+      );
+    }
+    for (let j = 0; j <= bLength; j += 1) {
+      previous[j] = current[j];
+    }
+  }
+
+  return previous[bLength];
 }
 
 function initAccountLabelSuggestions() {
@@ -904,6 +1072,7 @@ async function handleRecipeDelete(recipe) {
 
   try {
     await deleteRecipeById(recipe.id);
+    await hydrateKnownSites({ force: true });
     const filter = document.getElementById('searchHistory').value.trim();
     await refreshHistoryList(filter);
     await notifyFileSyncRegistryChange();
@@ -1019,6 +1188,7 @@ async function handleImport() {
       if (!Array.isArray(data)) throw new Error('Invalid file format');
       await importRecipes(data);
       alert(`✅ Imported ${data.length} recipes`);
+      await hydrateKnownSites({ force: true });
       await refreshHistoryList();
       await notifyFileSyncRegistryChange();
     } catch (error) {
@@ -1035,6 +1205,8 @@ async function handleResetAppData() {
     await clearAllData();
     clearPreferences();
     userPreferences = {};
+    knownSitesCache = [];
+    knownSitesLoaded = false;
     resetPreferenceDefaults();
     toggleController?.enforceState({ notify: false });
     await refreshHistoryList();

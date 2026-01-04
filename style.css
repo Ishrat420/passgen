@@ -311,6 +311,39 @@ small {
   font-size: 0.82rem;
 }
 
+.site-suggestion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid #f0d7a0;
+  background: #fff7e6;
+  color: #5a4a2c;
+  font-size: 0.82rem;
+}
+
+.site-suggestion__text strong {
+  color: #332612;
+}
+
+.site-suggestion__action {
+  border: none;
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  background: #1b1b1b;
+  color: #fff;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.site-suggestion__action:hover,
+.site-suggestion__action:focus-visible {
+  background: #000;
+}
+
 details {
   margin-top: 0.5rem;
 }

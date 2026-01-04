@@ -299,6 +299,20 @@ export async function exportRecipes() {
   return fetchRecipes();
 }
 
+export async function fetchRegistrySites() {
+  const keys = await registryStore.keys();
+  const sites = new Set();
+
+  for (const key of keys) {
+    const entry = await normalizeRegistryEntry(await registryStore.getItem(key));
+    if (!entry || !entry.site) continue;
+    const site = String(entry.site).trim();
+    if (site) sites.add(site);
+  }
+
+  return Array.from(sites).sort((a, b) => a.localeCompare(b));
+}
+
 export async function deleteRecipeById(recipeId) {
   if (!recipeId) {
     return { removed: false, remainingVersions: null, site: null };
