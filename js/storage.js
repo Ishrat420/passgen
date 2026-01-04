@@ -300,17 +300,35 @@ export async function exportRecipes() {
 }
 
 export async function fetchRegistrySites() {
-  const keys = await registryStore.keys();
-  const sites = new Set();
+  const [registryKeys, recipeKeys] = await Promise.all([
+    registryStore.keys(),
+    recipeStore.keys()
+  ]);
+  const sites = new Map();
 
-  for (const key of keys) {
+  for (const key of registryKeys) {
     const entry = await normalizeRegistryEntry(await registryStore.getItem(key));
     if (!entry || !entry.site) continue;
     const site = String(entry.site).trim();
-    if (site) sites.add(site);
+    if (!site) continue;
+    const normalizedKey = site.toLowerCase();
+    if (!sites.has(normalizedKey)) {
+      sites.set(normalizedKey, site);
+    }
   }
 
-  return Array.from(sites).sort((a, b) => a.localeCompare(b));
+  for (const key of recipeKeys) {
+    const entry = await recipeStore.getItem(key);
+    if (!entry || !entry.site) continue;
+    const site = String(entry.site).trim();
+    if (!site) continue;
+    const normalizedKey = site.toLowerCase();
+    if (!sites.has(normalizedKey)) {
+      sites.set(normalizedKey, site);
+    }
+  }
+
+  return Array.from(sites.values()).sort((a, b) => a.localeCompare(b));
 }
 
 export async function deleteRecipeById(recipeId) {

@@ -588,7 +588,15 @@ function initSiteSuggestions() {
 async function hydrateKnownSites({ force = false } = {}) {
   if (knownSitesLoaded && !force) return knownSitesCache;
   try {
-    knownSitesCache = await fetchRegistrySites();
+    const sites = await fetchRegistrySites();
+    knownSitesCache = sites.map(site => {
+      const trimmed = String(site).trim();
+      return {
+        site: trimmed,
+        normalized: PasswordGenerator.normalizeSite(trimmed),
+        comparable: normalizeComparableSite(trimmed)
+      };
+    }).filter(entry => entry.site);
   } catch {
     knownSitesCache = [];
   }
@@ -599,9 +607,17 @@ async function hydrateKnownSites({ force = false } = {}) {
 function addKnownSite(site) {
   const trimmed = typeof site === 'string' ? site.trim() : '';
   if (!trimmed) return;
-  const exists = knownSitesCache.some(entry => entry.toLowerCase() === trimmed.toLowerCase());
+  const normalizedKey = PasswordGenerator.normalizeSite(trimmed);
+  const exists = knownSitesCache.some(entry => entry.normalized === normalizedKey);
   if (!exists) {
-    knownSitesCache = [...knownSitesCache, trimmed];
+    knownSitesCache = [
+      ...knownSitesCache,
+      {
+        site: trimmed,
+        normalized: normalizedKey,
+        comparable: normalizeComparableSite(trimmed)
+      }
+    ];
   }
 }
 
@@ -609,22 +625,38 @@ function findClosestKnownSite(inputValue, knownSites) {
   if (!inputValue || !Array.isArray(knownSites) || !knownSites.length) return '';
 
   const normalizedInput = PasswordGenerator.normalizeSite(inputValue);
-  if (!normalizedInput) return '';
+  const comparableInput = normalizeComparableSite(inputValue);
+  if (!normalizedInput && !comparableInput) return '';
 
   let bestMatch = '';
   let bestScore = 0;
 
-  for (const site of knownSites) {
-    const normalizedSite = PasswordGenerator.normalizeSite(site);
-    if (!normalizedSite || normalizedSite === normalizedInput) continue;
-    const score = scoreSiteSimilarity(normalizedInput, normalizedSite);
+  for (const entry of knownSites) {
+    const normalizedSite = entry.normalized;
+    const comparableSite = entry.comparable;
+    if (!normalizedSite && !comparableSite) continue;
+    if (normalizedSite && normalizedInput && normalizedSite === normalizedInput) continue;
+    if (comparableSite && comparableInput && comparableSite === comparableInput) continue;
+
+    const score = Math.max(
+      scoreSiteSimilarity(normalizedInput, normalizedSite),
+      scoreSiteSimilarity(comparableInput, comparableSite)
+    );
     if (score > bestScore) {
       bestScore = score;
-      bestMatch = site;
+      bestMatch = entry.site;
     }
   }
 
-  return bestScore >= 0.78 ? bestMatch : '';
+  return bestScore >= 0.7 ? bestMatch : '';
+}
+
+function normalizeComparableSite(value = '') {
+  const raw = String(value).trim().toLowerCase();
+  if (!raw) return '';
+  let cleaned = raw.replace(/^https?:\/\//, '').replace(/^www\./, '');
+  cleaned = cleaned.replace(/\/.*$/, '');
+  return cleaned;
 }
 
 function scoreSiteSimilarity(input, candidate) {
@@ -637,7 +669,7 @@ function scoreSiteSimilarity(input, candidate) {
     candidate.includes(input) ||
     input.includes(candidate)
   ) {
-    return 0.92;
+    return 0.95;
   }
 
   const distance = levenshteinDistance(input, candidate);
