@@ -515,9 +515,21 @@ function initAccountLabelSuggestions() {
   const suggestionPanel = document.getElementById('accountLabelPanel');
   if (!accountLabelInput || !suggestionPanel) return;
 
+  let suppressNextOpen = false;
+
   const refreshSuggestions = (event = {}) => {
-    const isOpen = suggestionPanel.hidden === false;
-    const shouldOpen = event.type === 'focus' || event.type === 'click' || isOpen;
+    if (suppressNextOpen) {
+      suppressNextOpen = false;
+      void updateAccountLabelSuggestions(accountLabelInput.value, { openPanel: false });
+      return;
+    }
+
+    const isFocused = document.activeElement === accountLabelInput;
+    const shouldOpen =
+      event.type === 'focus' ||
+      event.type === 'click' ||
+      (event.type === 'input' && isFocused);
+
     void updateAccountLabelSuggestions(accountLabelInput.value, { openPanel: shouldOpen });
   };
 
@@ -579,8 +591,9 @@ function initAccountLabelSuggestions() {
     if (!value) return;
     accountLabelInput.value = value;
     updateFilledState(accountLabelInput);
-    accountLabelInput.dispatchEvent(new Event('input', { bubbles: true }));
+    suppressNextOpen = true;
     closePanel();
+    accountLabelInput.dispatchEvent(new Event('input', { bubbles: true }));
     accountLabelInput.focus();
   });
 
