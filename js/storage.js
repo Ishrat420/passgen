@@ -65,21 +65,11 @@ async function normalizeAccountFields(entry = {}) {
   if (!entry) return entry;
   const { accountId, accountLabel, accountHash, ...rest } = entry;
   const trimmedLabel = typeof accountLabel === 'string' ? accountLabel.trim() : '';
-  let trimmedHash = typeof accountHash === 'string' ? accountHash.trim() : '';
-  const normalizedAccountId = typeof accountId === 'string' ? accountId.trim() : '';
-
-  if (!trimmedHash && normalizedAccountId) {
-    try {
-      const { hash } = await PasswordGenerator.computeAccountHash(normalizedAccountId);
-      trimmedHash = hash;
-    } catch {
-      // Ignore hashing errors and keep the existing hash value.
-    }
-  }
-
+  const rawAccount = typeof rest.account === 'string' ? rest.account : (typeof accountId === 'string' ? accountId : '');
+  const normalizedAccount = PasswordGenerator.normalizeAccount(rawAccount);
   const normalized = { ...rest };
   if (trimmedLabel) normalized.accountLabel = trimmedLabel;
-  if (trimmedHash) normalized.accountHash = trimmedHash;
+  if (normalizedAccount) normalized.account = normalizedAccount;
   return normalized;
 }
 
@@ -110,7 +100,6 @@ async function ensureRecipeIdentifiers(version = {}) {
   }
 
   try {
-    const accountHash = typeof baseEntry.accountHash === 'string' ? baseEntry.accountHash : '';
     const { digest } = await PasswordGenerator.computeRecipeId({
       algorithm: baseEntry.algorithm,
       site: baseEntry.site,
@@ -119,8 +108,7 @@ async function ensureRecipeIdentifiers(version = {}) {
       length: baseEntry.length,
       policyOn: Boolean(baseEntry.policyOn),
       compatMode: Boolean(baseEntry.compatMode),
-      parameters: normalizedParameters,
-      accountHash
+      parameters: normalizedParameters
     });
     if (digest && digest.length === 64) {
       return {
@@ -380,7 +368,6 @@ export async function exportRegistrySnapshot() {
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
         accountLabel: version.accountLabel,
-        accountHash: version.accountHash,
         parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version || index + 1
@@ -430,7 +417,6 @@ export async function importRegistrySnapshot(snapshot = {}) {
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
         accountLabel: version.accountLabel,
-        accountHash: version.accountHash,
         parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version

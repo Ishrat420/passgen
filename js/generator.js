@@ -80,11 +80,6 @@ export class PasswordGenerator {
     return String(account).trim().toLowerCase();
   }
 
-  static normalizeAccountId(accountId) {
-    if (accountId == null) return '';
-    return String(accountId).trim().toLowerCase();
-  }
-
   static normalizeCounter(counter) {
     const raw = String(counter ?? '0').trim();
     if (raw === '') return '0';
@@ -275,14 +270,5 @@ export class PasswordGenerator {
     const signature = typeof details === 'string' ? details : this.buildRecipeSignature(details);
     const digest = await CryptoHelper.digest(signature, 'SHA-256');
     return { signature, digest, short: digest.slice(0, 8) };
-  }
-
-  static async computeAccountHash(accountId) {
-    const normalized = this.normalizeAccountId(accountId);
-    if (!normalized) {
-      return { digest: '', hash: '', short: '' };
-    }
-    const digest = await CryptoHelper.digest(normalized, 'SHA-256');
-    return { digest, hash: digest, short: digest.slice(0, 8) };
   }
 }
