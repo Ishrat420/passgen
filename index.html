@@ -183,76 +183,84 @@
         <summary>🔐 Saved Recipes</summary>
 
         <div class="history-controls">
+          <details class="history-sync">
+            <summary>Sync &amp; Transfer</summary>
+            <div class="history-sync__body">
+              <div class="history-buttons">
+                <button id="syncBtn" type="button">Sync via QR</button>
+                <button id="exportBtn" type="button">Export JSON</button>
+                <button id="importBtn" type="button">Import JSON</button>
+                <button id="clearHistoryBtn" type="button">Clear All</button>
+              </div>
+
+              <section
+                id="fileSyncUnavailable"
+                class="file-sync-panel file-sync-panel--collapsed"
+                aria-live="polite"
+                hidden
+              >
+                <h3>Shared file sync not available</h3>
+                <p class="file-sync-panel__message">
+                  This browser doesn't support the File System Access API needed for shared JSON sync.
+                  Use <a href="#syncBtn">QR sync</a> or <a href="#exportBtn">export/import JSON</a> instead to move your recipes between devices.
+                </p>
+              </section>
+
+              <section id="fileSyncPanel" class="file-sync-panel" aria-labelledby="fileSyncHeading">
+                <div class="file-sync-panel__header">
+                  <div>
+                    <h3 id="fileSyncHeading">Shared file sync</h3>
+                    <p class="file-sync-panel__hint">
+                      Keep recipe metadata in a shared JSON file (e.g., USB drive) for offline sync. Your master passphrase never leaves this page.
+                    </p>
+                  </div>
+                  <div class="file-sync-panel__actions">
+                    <button id="fileSyncChooseBtn" type="button">Choose sync file</button>
+                    <button id="fileSyncSyncNowBtn" type="button">Sync now</button>
+                  </div>
+                </div>
+                <div class="file-sync-panel__controls" aria-live="polite">
+                  <div class="file-sync-panel__row">
+                    <div class="file-sync-panel__field">
+                      <label for="fileSyncAutoToggle">Auto-sync</label>
+                      <label class="switch" for="fileSyncAutoToggle">
+                        <input type="checkbox" id="fileSyncAutoToggle" checked>
+                        <span class="slider"></span>
+                      </label>
+                    </div>
+                    <div class="file-sync-panel__field">
+                      <label for="fileSyncInterval">Poll every</label>
+                      <select id="fileSyncInterval" class="field-input field-input--compact">
+                        <option value="1">1 minute</option>
+                        <option value="5" selected>5 minutes</option>
+                        <option value="10">10 minutes</option>
+                        <option value="30">30 minutes</option>
+                      </select>
+                    </div>
+                    <button id="fileSyncPauseBtn" type="button" class="ghost-btn">Pause auto-sync</button>
+                  </div>
+                  <div class="file-sync-panel__status">
+                    <p id="fileSyncFileLabel" class="file-sync-panel__file">No sync file selected.</p>
+                    <p id="fileSyncStatus" class="file-sync-panel__message" role="status" aria-live="polite">
+                      Saved recipes and sync files only store recipe metadata, never your master passphrase.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </details>
+        </div>
+
+        <div class="history-listing">
           <input
             type="text"
             id="searchHistory"
             placeholder="Search by site..."
             class="search-box"
           />
-          <div class="history-buttons">
-            <button id="syncBtn" type="button">Sync via QR</button>
-            <button id="exportBtn" type="button">Export JSON</button>
-            <button id="importBtn" type="button">Import JSON</button>
-            <button id="clearHistoryBtn" type="button">Clear All</button>
-          </div>
+
+          <ul id="historyList" class="history-list"></ul>
         </div>
-
-        <section
-          id="fileSyncUnavailable"
-          class="file-sync-panel file-sync-panel--collapsed"
-          aria-live="polite"
-          hidden
-        >
-          <h3>Shared file sync not available</h3>
-          <p class="file-sync-panel__message">
-            This browser doesn't support the File System Access API needed for shared JSON sync.
-            Use <a href="#syncBtn">QR sync</a> or <a href="#exportBtn">export/import JSON</a> instead to move your recipes between devices.
-          </p>
-        </section>
-
-        <section id="fileSyncPanel" class="file-sync-panel" aria-labelledby="fileSyncHeading">
-          <div class="file-sync-panel__header">
-            <div>
-              <h3 id="fileSyncHeading">Shared file sync</h3>
-              <p class="file-sync-panel__hint">
-                Keep recipe metadata in a shared JSON file (e.g., USB drive) for offline sync. Your master passphrase never leaves this page.
-              </p>
-            </div>
-            <div class="file-sync-panel__actions">
-              <button id="fileSyncChooseBtn" type="button">Choose sync file</button>
-              <button id="fileSyncSyncNowBtn" type="button">Sync now</button>
-            </div>
-          </div>
-          <div class="file-sync-panel__controls" aria-live="polite">
-            <div class="file-sync-panel__row">
-              <div class="file-sync-panel__field">
-                <label for="fileSyncAutoToggle">Auto-sync</label>
-                <label class="switch" for="fileSyncAutoToggle">
-                  <input type="checkbox" id="fileSyncAutoToggle" checked>
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <div class="file-sync-panel__field">
-                <label for="fileSyncInterval">Poll every</label>
-                <select id="fileSyncInterval" class="field-input field-input--compact">
-                  <option value="1">1 minute</option>
-                  <option value="5" selected>5 minutes</option>
-                  <option value="10">10 minutes</option>
-                  <option value="30">30 minutes</option>
-                </select>
-              </div>
-              <button id="fileSyncPauseBtn" type="button" class="ghost-btn">Pause auto-sync</button>
-            </div>
-            <div class="file-sync-panel__status">
-              <p id="fileSyncFileLabel" class="file-sync-panel__file">No sync file selected.</p>
-              <p id="fileSyncStatus" class="file-sync-panel__message" role="status" aria-live="polite">
-                Saved recipes and sync files only store recipe metadata, never your master passphrase.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <ul id="historyList" class="history-list"></ul>
         <small id="storageInfo" class="history-footnote"></small>
       </details>
     </section>

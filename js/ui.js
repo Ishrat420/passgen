@@ -626,11 +626,6 @@ async function refreshHistoryList(filter = '') {
       new Date(recipe.date).toLocaleString()
     ];
 
-    const accountDisplay = recipe.accountLabel || recipe.accountHash;
-    if (accountDisplay) {
-      detailParts.splice(1, 0, `Account: ${accountDisplay}`);
-    }
-
     if (tuningParts.length) {
       detailParts.splice(3, 0, `Tuning: ${tuningParts.join(' · ')}`);
     }
