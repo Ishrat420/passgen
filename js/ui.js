@@ -621,11 +621,7 @@ async function updateAccountLabelSuggestions(filterValue = '', { openPanel = fal
     panel.appendChild(button);
   });
 
-  if (filtered.length && openPanel) {
-    panel.hidden = false;
-  } else if (!filtered.length) {
-    panel.hidden = true;
-  }
+  panel.hidden = !(openPanel && filtered.length);
 }
 
 async function rememberAccountLabel(accountLabel) {
