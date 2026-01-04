@@ -271,4 +271,13 @@ export class PasswordGenerator {
     const digest = await CryptoHelper.digest(signature, 'SHA-256');
     return { signature, digest, short: digest.slice(0, 8) };
   }
+
+  static async computeAccountHash(accountId) {
+    const normalized = this.normalizeAccountId(accountId);
+    if (!normalized) {
+      return { digest: '', short: '' };
+    }
+    const digest = await CryptoHelper.digest(normalized, 'SHA-256');
+    return { digest, short: digest.slice(0, 8) };
+  }
 }

@@ -230,6 +230,8 @@ async function handleGenerate() {
 
     const parameterSettings = generator.parameters;
 
+    const { short: accountHash } = await PasswordGenerator.computeAccountHash(accountId);
+
     const { digest: recipeDigest, short: recipeShort } = await PasswordGenerator.computeRecipeId({
       algorithm,
       site: normalizedSite,
@@ -238,10 +240,13 @@ async function handleGenerate() {
       length: effectiveLength,
       policyOn,
       compatMode,
-      parameters: parameterSettings
+      parameters: parameterSettings,
+      accountHash
     });
 
-    document.getElementById('recipeInfo').innerText = 'Recipe ID ' + recipeShort;
+    document.getElementById('recipeInfo').innerText = accountHash
+      ? `Recipe ID ${recipeShort} · Account #${accountHash}`
+      : 'Recipe ID ' + recipeShort;
 
     const existingRegistry = await getRegistryEntry(normalizedSite);
     const { hash: accountHash } = accountId
@@ -610,8 +615,12 @@ async function refreshHistoryList(filter = '') {
     const parameterSettings = PasswordGenerator.normalizeParameters(recipe.parameters);
     const tuningParts = formatRecipeTuning(recipe.algorithm, parameterSettings);
 
+    const accountSummary = [recipe.accountLabel, recipe.accountHash ? `#${recipe.accountHash}` : '']
+      .filter(Boolean)
+      .join(' ');
     const detailParts = [
       `ID: ${shortId}`,
+      ...(accountSummary ? [`Account: ${accountSummary}`] : []),
       `Counter: ${recipe.counter}`,
       `${recipe.length} chars`,
       new Date(recipe.date).toLocaleString()
@@ -965,6 +974,7 @@ async function explainPassword() {
   const normalizedSite = PasswordGenerator.normalizeSite(site);
   const normalizedAccount = PasswordGenerator.normalizeAccount(account);
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
+  const { short: accountHash } = await PasswordGenerator.computeAccountHash(accountId);
   const { short: recipeId } = await PasswordGenerator.computeRecipeId({
     algorithm,
     site: normalizedSite,
@@ -973,7 +983,8 @@ async function explainPassword() {
     length,
     policyOn,
     compatMode,
-    parameters: parameterSettings
+    parameters: parameterSettings,
+    accountHash
   });
 
   const box = document.getElementById('explainBox');

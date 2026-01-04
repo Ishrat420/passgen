@@ -106,6 +106,7 @@ async function ensureRecipeIdentifiers(version = {}) {
   }
 
   try {
+    const accountHash = typeof baseEntry.accountHash === 'string' ? baseEntry.accountHash : '';
     const { digest } = await PasswordGenerator.computeRecipeId({
       algorithm: baseEntry.algorithm,
       site: baseEntry.site,
@@ -114,7 +115,8 @@ async function ensureRecipeIdentifiers(version = {}) {
       length: baseEntry.length,
       policyOn: Boolean(baseEntry.policyOn),
       compatMode: Boolean(baseEntry.compatMode),
-      parameters: normalizedParameters
+      parameters: normalizedParameters,
+      accountHash
     });
     if (digest && digest.length === 64) {
       return {
