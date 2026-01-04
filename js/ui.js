@@ -516,10 +516,18 @@ function initAccountLabelSuggestions() {
   if (!accountLabelInput || !suggestionPanel) return;
 
   let suppressNextOpen = false;
+  let suppressNextFocusOpen = false;
+  suggestionPanel.hidden = true;
 
   const refreshSuggestions = (event = {}) => {
     if (suppressNextOpen) {
       suppressNextOpen = false;
+      void updateAccountLabelSuggestions(accountLabelInput.value, { openPanel: false });
+      return;
+    }
+
+    if (event.type === 'focus' && suppressNextFocusOpen) {
+      suppressNextFocusOpen = false;
       void updateAccountLabelSuggestions(accountLabelInput.value, { openPanel: false });
       return;
     }
@@ -553,6 +561,11 @@ function initAccountLabelSuggestions() {
   });
 
   document.addEventListener('click', event => {
+    if (event.target === accountLabelInput || suggestionPanel.contains(event.target)) return;
+    closePanel();
+  });
+
+  document.addEventListener('focusin', event => {
     if (event.target === accountLabelInput || suggestionPanel.contains(event.target)) return;
     closePanel();
   });
@@ -592,12 +605,11 @@ function initAccountLabelSuggestions() {
     accountLabelInput.value = value;
     updateFilledState(accountLabelInput);
     suppressNextOpen = true;
+    suppressNextFocusOpen = true;
     closePanel();
     accountLabelInput.dispatchEvent(new Event('input', { bubbles: true }));
     accountLabelInput.focus();
   });
-
-  refreshSuggestions();
 }
 
 async function updateAccountLabelSuggestions(filterValue = '', { openPanel = false } = {}) {
