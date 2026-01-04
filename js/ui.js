@@ -138,7 +138,6 @@ function initEventHandlers() {
 
 async function handleGenerate() {
   const site = document.getElementById('website').value.trim();
-  const account = document.getElementById('account').value.trim();
   const accountId = document.getElementById('accountId').value.trim();
   const accountLabel = document.getElementById('accountLabel').value.trim();
   const secretInput = document.getElementById('secret');
@@ -213,7 +212,7 @@ async function handleGenerate() {
 
     const { password, normalizedSite, normalizedAccount } = await generator.generate({
       site,
-      account,
+      account: accountId,
       secret,
       counter: normalizedCounter
     });
@@ -493,7 +492,7 @@ function updateToggleVisual(toggle, label, lock) {
 
 function setupReactiveFields() {
   const reactiveFields = [
-    'website', 'account', 'secret', 'algorithm', 'counter', 'length',
+    'website', 'accountId', 'secret', 'algorithm', 'counter', 'length',
     'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN',
     'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
@@ -782,7 +781,7 @@ function applyRecipeToForm(recipe) {
   if (!recipe) return;
 
   setTextFieldValue('website', recipe.site || '', 'input');
-  setTextFieldValue('account', recipe.account || '', 'input');
+  setTextFieldValue('accountId', recipe.account || '', 'input');
 
   const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
   setTextFieldValue('counter', normalizedCounter, 'change');
@@ -949,7 +948,6 @@ function copyToClipboard() {
 
 async function explainPassword() {
   const site = document.getElementById('website').value.trim();
-  const account = document.getElementById('account').value.trim();
   const accountId = document.getElementById('accountId').value.trim();
   const secret = document.getElementById('secret').value.trim();
   const counter = document.getElementById('counter').value.trim() || '0';
@@ -974,7 +972,7 @@ async function explainPassword() {
   });
 
   const normalizedSite = PasswordGenerator.normalizeSite(site);
-  const normalizedAccount = PasswordGenerator.normalizeAccount(account);
+  const normalizedAccount = PasswordGenerator.normalizeAccount(accountId);
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
   const { short: accountHash } = accountId
     ? await PasswordGenerator.computeAccountHash(accountId)
