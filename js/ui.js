@@ -33,6 +33,109 @@ function isSimpleAlgorithm(algorithm) {
   return SIMPLE_ALGORITHMS.has(algorithm);
 }
 
+function parseNumericCounterValue(counter) {
+  const raw = String(counter ?? '').trim();
+  if (!raw || !/^-?\d+$/.test(raw)) return null;
+
+  if (typeof BigInt === 'function') {
+    try {
+      return BigInt(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function hasMatchingAccount(version, normalizedAccount, accountHash) {
+  if (accountHash) {
+    return typeof version.accountHash === 'string' && version.accountHash === accountHash;
+  }
+
+  const versionAccount = PasswordGenerator.normalizeAccount(version.account ?? '');
+  return versionAccount === normalizedAccount;
+}
+
+function hasMatchingParameters(version, parameters) {
+  const versionParams = PasswordGenerator.normalizeParameters(version.parameters);
+  return (
+    versionParams.iterations === parameters.iterations &&
+    versionParams.argonMem === parameters.argonMem &&
+    versionParams.scryptN === parameters.scryptN &&
+    versionParams.balloonSpace === parameters.balloonSpace &&
+    versionParams.balloonTime === parameters.balloonTime &&
+    versionParams.balloonDelta === parameters.balloonDelta
+  );
+}
+
+function findLatestSeriesVersion(registry, {
+  algorithm,
+  length,
+  policyOn,
+  compatMode,
+  parameters,
+  normalizedAccount,
+  accountHash
+}) {
+  if (!registry || !Array.isArray(registry.versions)) return null;
+
+  return registry.versions.reduce((latest, version) => {
+    if (!version) return latest;
+    if (version.algorithm !== algorithm) return latest;
+    if (version.length !== length) return latest;
+    if (Boolean(version.policyOn) !== Boolean(policyOn)) return latest;
+    if (Boolean(version.compatMode) !== Boolean(compatMode)) return latest;
+    if (!hasMatchingAccount(version, normalizedAccount, accountHash)) return latest;
+    if (!hasMatchingParameters(version, parameters)) return latest;
+
+    if (!latest) return version;
+    const latestVersionNumber = typeof latest.version === 'number' ? latest.version : 0;
+    const versionNumber = typeof version.version === 'number' ? version.version : 0;
+    return versionNumber >= latestVersionNumber ? version : latest;
+  }, null);
+}
+
+function getCounterSequenceError({
+  registry,
+  normalizedCounter,
+  algorithm,
+  length,
+  policyOn,
+  compatMode,
+  parameters,
+  normalizedAccount,
+  accountHash
+}) {
+  const nextCounterValue = parseNumericCounterValue(normalizedCounter);
+  if (nextCounterValue === null) return '';
+
+  const latestSeries = findLatestSeriesVersion(registry, {
+    algorithm,
+    length,
+    policyOn,
+    compatMode,
+    parameters,
+    normalizedAccount,
+    accountHash
+  });
+  if (!latestSeries) return '';
+
+  const latestCounterRaw = latestSeries.counter ?? '0';
+  const latestCounterValue = parseNumericCounterValue(latestCounterRaw);
+  if (latestCounterValue === null) return '';
+
+  const expectedNext = typeof latestCounterValue === 'bigint'
+    ? latestCounterValue + 1n
+    : latestCounterValue + 1;
+  if (nextCounterValue > expectedNext) {
+    return `Counter must increment by 1. Last used counter for this recipe is ${latestCounterRaw}. Please use ${expectedNext} next.`;
+  }
+
+  return '';
+}
+
 function registerFilledStateTracking(element) {
   if (!element || !(element instanceof HTMLElement)) return;
   if (element.matches('input[type="checkbox"], input[type="radio"]')) return;
@@ -202,6 +305,36 @@ async function handleGenerate() {
     return;
   }
 
+  const normalizedSite = PasswordGenerator.normalizeSite(site);
+  const normalizedAccount = PasswordGenerator.normalizeAccount(accountId);
+  const parameterSettings = PasswordGenerator.normalizeParameters({
+    iterations,
+    argonMem,
+    scryptN,
+    balloonSpace,
+    balloonTime,
+    balloonDelta
+  });
+  const { short: accountHashShort, hash: accountHash } = accountId
+    ? await PasswordGenerator.computeAccountHash(accountId)
+    : { short: '', hash: '' };
+  const existingRegistry = await getRegistryEntry(normalizedSite);
+  const counterSequenceError = getCounterSequenceError({
+    registry: existingRegistry,
+    normalizedCounter,
+    algorithm,
+    length,
+    policyOn,
+    compatMode,
+    parameters: parameterSettings,
+    normalizedAccount,
+    accountHash
+  });
+  if (counterSequenceError) {
+    showValidationError(counterSequenceError);
+    return;
+  }
+
   resetUI({ clearPassword: true, clearRecipe: true });
 
   try {
@@ -232,12 +365,6 @@ async function handleGenerate() {
 
     const effectiveLength = generator.length;
 
-    const parameterSettings = generator.parameters;
-
-    const { short: accountHashShort, hash: accountHash } = accountId
-      ? await PasswordGenerator.computeAccountHash(accountId)
-      : { short: '', hash: '' };
-
     const { digest: recipeDigest, short: recipeShort } = await PasswordGenerator.computeRecipeId({
       algorithm,
       site: normalizedSite,
@@ -246,7 +373,7 @@ async function handleGenerate() {
       length: effectiveLength,
       policyOn,
       compatMode,
-      parameters: parameterSettings,
+      parameters: generator.parameters,
       accountHash
     });
 
@@ -254,7 +381,6 @@ async function handleGenerate() {
       ? `Recipe ID ${recipeShort} · Account #${accountHashShort}`
       : 'Recipe ID ' + recipeShort;
 
-    const existingRegistry = await getRegistryEntry(normalizedSite);
     const recipeEntry = {
       id: recipeDigest,
       shortId: recipeShort,
@@ -266,7 +392,7 @@ async function handleGenerate() {
       policyOn,
       compatMode,
       date: new Date().toISOString(),
-      parameters: parameterSettings,
+      parameters: generator.parameters,
       ...(accountLabel ? { accountLabel } : {}),
       ...(accountHash ? { accountHash } : {})
     };
