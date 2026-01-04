@@ -244,6 +244,9 @@ async function handleGenerate() {
     document.getElementById('recipeInfo').innerText = 'Recipe ID ' + recipeShort;
 
     const existingRegistry = await getRegistryEntry(normalizedSite);
+    const { hash: accountHash } = accountId
+      ? await PasswordGenerator.computeAccountHash(accountId)
+      : { hash: '' };
     const recipeEntry = {
       id: recipeDigest,
       shortId: recipeShort,
@@ -255,7 +258,9 @@ async function handleGenerate() {
       policyOn,
       compatMode,
       date: new Date().toISOString(),
-      parameters: parameterSettings
+      parameters: parameterSettings,
+      ...(accountLabel ? { accountLabel } : {}),
+      ...(accountHash ? { accountHash } : {})
     };
 
     const registryResult = await recordRecipeUsage(recipeEntry, existingRegistry);
@@ -611,6 +616,11 @@ async function refreshHistoryList(filter = '') {
       `${recipe.length} chars`,
       new Date(recipe.date).toLocaleString()
     ];
+
+    const accountDisplay = recipe.accountLabel || recipe.accountHash;
+    if (accountDisplay) {
+      detailParts.splice(1, 0, `Account: ${accountDisplay}`);
+    }
 
     if (tuningParts.length) {
       detailParts.splice(3, 0, `Tuning: ${tuningParts.join(' · ')}`);
