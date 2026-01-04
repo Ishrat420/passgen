@@ -139,6 +139,8 @@ function initEventHandlers() {
 async function handleGenerate() {
   const site = document.getElementById('website').value.trim();
   const account = document.getElementById('account').value.trim();
+  const accountId = document.getElementById('accountId').value.trim();
+  const accountLabel = document.getElementById('accountLabel').value.trim();
   const secretInput = document.getElementById('secret');
   const secret = secretInput.value.trim();
   const counterInput = document.getElementById('counter');
@@ -230,7 +232,9 @@ async function handleGenerate() {
 
     const parameterSettings = generator.parameters;
 
-    const { short: accountHash } = await PasswordGenerator.computeAccountHash(accountId);
+    const { short: accountHashShort, hash: accountHash } = accountId
+      ? await PasswordGenerator.computeAccountHash(accountId)
+      : { short: '', hash: '' };
 
     const { digest: recipeDigest, short: recipeShort } = await PasswordGenerator.computeRecipeId({
       algorithm,
@@ -244,14 +248,11 @@ async function handleGenerate() {
       accountHash
     });
 
-    document.getElementById('recipeInfo').innerText = accountHash
-      ? `Recipe ID ${recipeShort} · Account #${accountHash}`
+    document.getElementById('recipeInfo').innerText = accountHashShort
+      ? `Recipe ID ${recipeShort} · Account #${accountHashShort}`
       : 'Recipe ID ' + recipeShort;
 
     const existingRegistry = await getRegistryEntry(normalizedSite);
-    const { hash: accountHash } = accountId
-      ? await PasswordGenerator.computeAccountHash(accountId)
-      : { hash: '' };
     const recipeEntry = {
       id: recipeDigest,
       shortId: recipeShort,
@@ -949,6 +950,7 @@ function copyToClipboard() {
 async function explainPassword() {
   const site = document.getElementById('website').value.trim();
   const account = document.getElementById('account').value.trim();
+  const accountId = document.getElementById('accountId').value.trim();
   const secret = document.getElementById('secret').value.trim();
   const counter = document.getElementById('counter').value.trim() || '0';
   const algorithm = document.getElementById('algorithm').value;
@@ -974,7 +976,9 @@ async function explainPassword() {
   const normalizedSite = PasswordGenerator.normalizeSite(site);
   const normalizedAccount = PasswordGenerator.normalizeAccount(account);
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
-  const { short: accountHash } = await PasswordGenerator.computeAccountHash(accountId);
+  const { short: accountHash } = accountId
+    ? await PasswordGenerator.computeAccountHash(accountId)
+    : { short: '' };
   const { short: recipeId } = await PasswordGenerator.computeRecipeId({
     algorithm,
     site: normalizedSite,

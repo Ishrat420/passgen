@@ -80,6 +80,11 @@ export class PasswordGenerator {
     return String(account).trim().toLowerCase();
   }
 
+  static normalizeAccountId(accountId) {
+    if (accountId == null) return '';
+    return String(accountId).trim().toLowerCase();
+  }
+
   static normalizeCounter(counter) {
     const raw = String(counter ?? '0').trim();
     if (raw === '') return '0';
@@ -275,9 +280,9 @@ export class PasswordGenerator {
   static async computeAccountHash(accountId) {
     const normalized = this.normalizeAccountId(accountId);
     if (!normalized) {
-      return { digest: '', short: '' };
+      return { digest: '', hash: '', short: '' };
     }
     const digest = await CryptoHelper.digest(normalized, 'SHA-256');
-    return { digest, short: digest.slice(0, 8) };
+    return { digest, hash: digest, short: digest.slice(0, 8) };
   }
 }
