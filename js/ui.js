@@ -45,7 +45,8 @@ const domainState = {
   labelValue: '',
   domainValue: '',
   forceLabel: false,
-  verifyEnabled: true
+  verifyEnabled: true,
+  hasTyped: false
 };
 
 function isSimpleAlgorithm(algorithm) {
@@ -768,9 +769,12 @@ function initDomainVerification() {
     }, 600);
   };
 
-  const handleInputUpdate = () => {
+  const handleInputUpdate = event => {
     const rawValue = siteInput.value ?? '';
     const trimmedValue = String(rawValue).trim();
+    if (event?.type === 'input' && rawValue !== '') {
+      domainState.hasTyped = true;
+    }
     if (trimmedValue !== domainState.labelValue) {
       domainState.forceLabel = false;
     }
@@ -784,6 +788,12 @@ function initDomainVerification() {
 
     domainState.kind = parsed.kind;
     domainState.labelValue = parsed.labelValue;
+
+    if (!domainState.hasTyped) {
+      clearTimeout(domainCheckTimer);
+      hideStatus();
+      return;
+    }
 
     if (!trimmedValue) {
       clearTimeout(domainCheckTimer);
