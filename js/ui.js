@@ -48,7 +48,8 @@ const domainState = {
   forceLabel: false,
   verifyEnabled: true,
   hasTyped: false,
-  userInteracted: false
+  userInteracted: false,
+  hasBlurredAfterInteraction: false
 };
 
 function isSimpleAlgorithm(algorithm) {
@@ -815,9 +816,9 @@ function initDomainVerification() {
       clearTimeout(labelStatusTimer);
       hideStatus();
       const showLabelStatus = () => setStatus(DOMAIN_STATUS.LABEL);
-      if (event?.type === 'blur') {
+      if (event?.type === 'blur' && domainState.hasBlurredAfterInteraction) {
         showLabelStatus();
-      } else if (document.activeElement !== siteInput) {
+      } else if (domainState.hasBlurredAfterInteraction) {
         labelStatusTimer = setTimeout(showLabelStatus, 600);
       }
       domainState.domainValue = '';
@@ -853,7 +854,12 @@ function initDomainVerification() {
 
   siteInput.addEventListener('input', handleInputUpdate);
   siteInput.addEventListener('change', handleInputUpdate);
-  siteInput.addEventListener('blur', handleInputUpdate);
+  siteInput.addEventListener('blur', event => {
+    if (domainState.userInteracted) {
+      domainState.hasBlurredAfterInteraction = true;
+    }
+    handleInputUpdate(event);
+  });
   siteInput.addEventListener('keydown', event => {
     if (event.isTrusted) domainState.userInteracted = true;
   });
