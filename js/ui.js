@@ -29,6 +29,28 @@ let toggleController = null;
 
 const SIMPLE_ALGORITHMS = new Set(['SHA-256', 'SHA-512', 'BLAKE2b-512', 'BLAKE2s-256', 'HMAC-SHA256']);
 
+const DOMAIN_STATUS = Object.freeze({
+  LABEL: 'label',
+  CHECKING: 'checking',
+  VERIFIED: 'verified',
+  UNVERIFIED: 'unverified'
+});
+
+const domainVerificationCache = new Map();
+let domainCheckTimer = null;
+let domainCheckToken = 0;
+let labelStatusTimer = null;
+const domainState = {
+  kind: DOMAIN_STATUS.LABEL,
+  status: DOMAIN_STATUS.LABEL,
+  labelValue: '',
+  domainValue: '',
+  forceLabel: false,
+  verifyEnabled: true,
+  hasTyped: false,
+  userInteracted: false
+};
+
 function isSimpleAlgorithm(algorithm) {
   return SIMPLE_ALGORITHMS.has(algorithm);
 }
@@ -47,6 +69,76 @@ function parseNumericCounterValue(counter) {
 
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function looksLikeDomainCandidate(value) {
+  if (!value) return false;
+  return /:\/\//.test(value) || /^www\./i.test(value) || value.includes('.');
+}
+
+function normalizeDomainValue(value) {
+  if (!value) return '';
+  let input = String(value).trim().toLowerCase();
+  if (!input) return '';
+
+  let hostname = input;
+  try {
+    let candidate = hostname;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(candidate)) {
+      candidate = `https://${candidate}`;
+    }
+    hostname = new URL(candidate).hostname;
+  } catch {
+    // Fall back to raw input when URL parsing fails.
+  }
+
+  return hostname.toLowerCase().trim().replace(/^www\./, '').replace(/\.+$/, '');
+}
+
+function resolveSiteInput(rawValue, { verifyEnabled = true, forceLabel = false } = {}) {
+  const labelValue = String(rawValue ?? '').trim();
+  if (!labelValue) {
+    return { kind: 'empty', labelValue: '', domainValue: '' };
+  }
+
+  if (!verifyEnabled || forceLabel) {
+    return { kind: 'label', labelValue, domainValue: '' };
+  }
+
+  if (!looksLikeDomainCandidate(labelValue)) {
+    return { kind: 'label', labelValue, domainValue: '' };
+  }
+
+  const domainValue = normalizeDomainValue(labelValue);
+  if (!domainValue) {
+    return { kind: 'label', labelValue, domainValue: '' };
+  }
+
+  return { kind: 'domain', labelValue, domainValue };
+}
+
+function resolveSiteValuesForGeneration() {
+  const siteInput = document.getElementById('website');
+  const verifyToggle = document.getElementById('verifyDomainsToggle');
+  const verifyEnabled = verifyToggle ? verifyToggle.checked : true;
+  const parsed = resolveSiteInput(siteInput?.value ?? '', {
+    verifyEnabled,
+    forceLabel: domainState.forceLabel
+  });
+
+  const isVerifiedDomain =
+    parsed.kind === 'domain' &&
+    verifyEnabled &&
+    domainState.status === DOMAIN_STATUS.VERIFIED &&
+    domainState.domainValue === parsed.domainValue &&
+    !domainState.forceLabel;
+
+  return {
+    siteValue: isVerifiedDomain ? parsed.domainValue : parsed.labelValue,
+    labelValue: parsed.labelValue,
+    domainValue: isVerifiedDomain ? parsed.domainValue : undefined,
+    domainVerified: isVerifiedDomain
+  };
 }
 
 function hasMatchingParameters(version, parameters) {
@@ -202,6 +294,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initPreferencePersistence();
   initEventHandlers();
   setupReactiveFields();
+  initDomainVerification();
   initAccountLabelSuggestions();
   refreshHistoryList();
   updateStorageInfo();
@@ -227,7 +320,8 @@ function initEventHandlers() {
 }
 
 async function handleGenerate() {
-  const site = document.getElementById('website').value.trim();
+  const siteValues = resolveSiteValuesForGeneration();
+  const site = siteValues.siteValue;
   const accountLabel = document.getElementById('accountLabel').value.trim();
   const secretInput = document.getElementById('secret');
   const secret = secretInput.value.trim();
@@ -258,9 +352,9 @@ async function handleGenerate() {
     clearSecretFieldError();
   }
 
-  if (!site || !secret) {
+  if (!siteValues.labelValue || !secret) {
     const missingFields = [];
-    if (!site) missingFields.push('website');
+    if (!siteValues.labelValue) missingFields.push('website');
     if (!secret) missingFields.push('secret');
 
     const messagePrefix = 'Please enter ';
@@ -288,7 +382,7 @@ async function handleGenerate() {
     return;
   }
 
-  const normalizedSite = PasswordGenerator.normalizeSite(site);
+  const normalizedSite = site;
   const parameterSettings = PasswordGenerator.normalizeParameters({
     iterations,
     argonMem,
@@ -323,10 +417,11 @@ async function handleGenerate() {
       parameters: { iterations, argonMem, scryptN, balloonSpace, balloonTime, balloonDelta }
     });
 
-    const { password, normalizedSite } = await generator.generate({
-      site,
+    const { password } = await generator.generate({
+      site: normalizedSite,
       secret,
-      counter: normalizedCounter
+      counter: normalizedCounter,
+      normalizeSite: false
     });
 
     lastGeneratedPassword = password;
@@ -357,6 +452,9 @@ async function handleGenerate() {
       id: recipeDigest,
       shortId: recipeShort,
       site: normalizedSite,
+      labelValue: siteValues.labelValue || undefined,
+      domainValue: siteValues.domainValue,
+      domainVerified: siteValues.domainVerified || undefined,
       algorithm,
       length: effectiveLength,
       counter: normalizedCounter,
@@ -593,7 +691,7 @@ function updateToggleVisual(toggle, label, lock) {
 function setupReactiveFields() {
   const reactiveFields = [
     'website', 'accountLabel', 'secret', 'algorithm', 'counter', 'length',
-    'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN',
+    'policyToggle', 'compatToggle', 'verifyDomainsToggle', 'iterations', 'argonMem', 'scryptN',
     'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
 
@@ -604,6 +702,209 @@ function setupReactiveFields() {
     element.addEventListener('input', hideResultBox);
     element.addEventListener('change', hideResultBox);
   });
+}
+
+function initDomainVerification() {
+  const siteInput = document.getElementById('website');
+  const statusEl = document.getElementById('domainStatus');
+  const statusIcon = statusEl?.querySelector('.domain-status__icon');
+  const statusText = statusEl?.querySelector('.domain-status__text');
+  const actionButton = document.getElementById('domainStatusAction');
+  const verifyToggle = document.getElementById('verifyDomainsToggle');
+  if (!siteInput || !statusEl || !statusIcon || !statusText || !actionButton || !verifyToggle) return;
+
+  const setStatus = status => {
+    domainState.status = status;
+    statusEl.hidden = false;
+    statusEl.classList.remove(
+      'domain-status--label',
+      'domain-status--checking',
+      'domain-status--verified',
+      'domain-status--unverified'
+    );
+    actionButton.hidden = true;
+    statusIcon.classList.remove('domain-status__icon--tick');
+
+    if (status === DOMAIN_STATUS.LABEL) {
+      statusEl.classList.add('domain-status--label');
+      statusIcon.textContent = 'ℹ';
+      statusText.textContent = 'Saved as a label only';
+    } else if (status === DOMAIN_STATUS.CHECKING) {
+      statusEl.classList.add('domain-status--checking');
+      statusIcon.textContent = '';
+      statusText.textContent = 'Checking domain…';
+    } else if (status === DOMAIN_STATUS.VERIFIED) {
+      statusEl.classList.add('domain-status--verified');
+      statusIcon.textContent = '✓';
+      statusText.textContent = 'Domain verified';
+      void statusIcon.offsetWidth;
+      statusIcon.classList.add('domain-status__icon--tick');
+    } else if (status === DOMAIN_STATUS.UNVERIFIED) {
+      statusEl.classList.add('domain-status--unverified');
+      statusIcon.textContent = '?';
+      statusText.textContent = 'Couldn’t verify this domain — saved anyway.';
+      actionButton.hidden = false;
+    }
+  };
+
+  const hideStatus = () => {
+    clearTimeout(labelStatusTimer);
+    statusEl.hidden = true;
+  };
+
+  const scheduleDomainCheck = domainValue => {
+    clearTimeout(domainCheckTimer);
+    domainCheckToken += 1;
+    const requestToken = domainCheckToken;
+    domainCheckTimer = setTimeout(async () => {
+      if (!domainValue) return;
+      if (!domainState.verifyEnabled || domainState.forceLabel) return;
+      if (domainVerificationCache.has(domainValue)) {
+        setStatus(domainVerificationCache.get(domainValue));
+        return;
+      }
+      setStatus(DOMAIN_STATUS.CHECKING);
+      const result = await verifyDomain(domainValue);
+      domainVerificationCache.set(domainValue, result);
+      if (requestToken !== domainCheckToken) return;
+      if (domainState.domainValue !== domainValue) return;
+      setStatus(result);
+    }, 600);
+  };
+
+  const handleInputUpdate = event => {
+    const rawValue = siteInput.value ?? '';
+    const trimmedValue = String(rawValue).trim();
+    if (event?.type === 'input' && rawValue !== '') {
+      domainState.hasTyped = true;
+    }
+    if (trimmedValue !== domainState.labelValue) {
+      domainState.forceLabel = false;
+    }
+
+    domainState.verifyEnabled = verifyToggle.checked;
+    const previousDomainValue = domainState.domainValue;
+    const parsed = resolveSiteInput(trimmedValue, {
+      verifyEnabled: domainState.verifyEnabled,
+      forceLabel: domainState.forceLabel
+    });
+
+    domainState.kind = parsed.kind;
+    domainState.labelValue = parsed.labelValue;
+
+    if (!domainState.userInteracted || !domainState.hasTyped) {
+      clearTimeout(domainCheckTimer);
+      hideStatus();
+      return;
+    }
+
+    if (!trimmedValue) {
+      clearTimeout(domainCheckTimer);
+      hideStatus();
+      return;
+    }
+
+    if (!domainState.verifyEnabled) {
+      clearTimeout(domainCheckTimer);
+      hideStatus();
+      return;
+    }
+
+    if (parsed.kind === 'label') {
+      clearTimeout(domainCheckTimer);
+      clearTimeout(labelStatusTimer);
+      hideStatus();
+      const showLabelStatus = () => setStatus(DOMAIN_STATUS.LABEL);
+      if (event?.type === 'blur') {
+        showLabelStatus();
+      } else if (document.activeElement !== siteInput) {
+        labelStatusTimer = setTimeout(showLabelStatus, 600);
+      }
+      domainState.domainValue = '';
+      return;
+    }
+
+    const domainUnchanged = parsed.domainValue === previousDomainValue;
+    domainState.domainValue = parsed.domainValue;
+
+    if (domainState.forceLabel) {
+      clearTimeout(domainCheckTimer);
+      setStatus(DOMAIN_STATUS.LABEL);
+      return;
+    }
+
+    if (!parsed.domainValue) {
+      setStatus(DOMAIN_STATUS.LABEL);
+      return;
+    }
+
+    if (domainVerificationCache.has(parsed.domainValue)) {
+      setStatus(domainVerificationCache.get(parsed.domainValue));
+      return;
+    }
+
+    if (domainUnchanged && domainState.status === DOMAIN_STATUS.CHECKING) {
+      return;
+    }
+
+    setStatus(DOMAIN_STATUS.CHECKING);
+    scheduleDomainCheck(parsed.domainValue);
+  };
+
+  siteInput.addEventListener('input', handleInputUpdate);
+  siteInput.addEventListener('change', handleInputUpdate);
+  siteInput.addEventListener('blur', handleInputUpdate);
+  siteInput.addEventListener('keydown', event => {
+    if (event.isTrusted) domainState.userInteracted = true;
+  });
+  siteInput.addEventListener('pointerdown', event => {
+    if (event.isTrusted) domainState.userInteracted = true;
+  });
+  siteInput.addEventListener('paste', event => {
+    if (event.isTrusted) domainState.userInteracted = true;
+  });
+  siteInput.addEventListener('focus', () => {
+    clearTimeout(labelStatusTimer);
+    hideStatus();
+  });
+
+  verifyToggle.addEventListener('change', () => {
+    domainState.verifyEnabled = verifyToggle.checked;
+    domainState.forceLabel = false;
+    handleInputUpdate();
+  });
+
+  actionButton.addEventListener('click', () => {
+    domainState.forceLabel = true;
+    handleInputUpdate();
+  });
+
+  handleInputUpdate();
+}
+
+async function verifyDomain(domainValue) {
+  if (domainVerificationCache.has(domainValue)) {
+    return domainVerificationCache.get(domainValue);
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2500);
+  try {
+    const response = await fetch(
+      `https://dns.google/resolve?name=${encodeURIComponent(domainValue)}&type=A`,
+      { signal: controller.signal }
+    );
+    if (!response.ok) {
+      return DOMAIN_STATUS.UNVERIFIED;
+    }
+    const data = await response.json();
+    const hasAnswer = Array.isArray(data.Answer) && data.Answer.length > 0;
+    return hasAnswer ? DOMAIN_STATUS.VERIFIED : DOMAIN_STATUS.UNVERIFIED;
+  } catch {
+    return DOMAIN_STATUS.UNVERIFIED;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function initAccountLabelSuggestions() {
@@ -840,6 +1141,13 @@ async function refreshHistoryList(filter = '') {
     const title = document.createElement('strong');
     title.textContent = recipe.site;
     heading.appendChild(title);
+
+    if (recipe.domainVerified) {
+      const badge = document.createElement('span');
+      badge.className = 'history-item__badge';
+      badge.textContent = 'Verified domain';
+      heading.appendChild(badge);
+    }
 
     const algorithmLabel = document.createElement('span');
     algorithmLabel.className = 'history-item__algorithm';
@@ -1177,7 +1485,8 @@ function copyToClipboard() {
 }
 
 async function explainPassword() {
-  const site = document.getElementById('website').value.trim();
+  const siteValues = resolveSiteValuesForGeneration();
+  const site = siteValues.siteValue;
   const secret = document.getElementById('secret').value.trim();
   const counter = document.getElementById('counter').value.trim() || '0';
   const algorithm = document.getElementById('algorithm').value;
@@ -1200,7 +1509,7 @@ async function explainPassword() {
     balloonDelta
   });
 
-  const normalizedSite = PasswordGenerator.normalizeSite(site);
+  const normalizedSite = site;
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
   const { short: recipeId } = await PasswordGenerator.computeRecipeId({
     algorithm,
@@ -1294,6 +1603,18 @@ function initPreferencePersistence() {
   });
 
   registerField({
+    key: 'verifyDomains',
+    element: document.getElementById('verifyDomainsToggle'),
+    applyStored: (el, stored) => {
+      if (typeof stored !== 'boolean') return Boolean(el.checked);
+      el.checked = stored;
+      return stored;
+    },
+    readValue: el => Boolean(el.checked),
+    events: ['change']
+  });
+
+  registerField({
     key: 'length',
     element: document.getElementById('length'),
     applyStored: (el, stored) => applyNumericPreference(el, stored, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH),
@@ -1360,6 +1681,7 @@ function initPreferencePersistence() {
 function applyStoredTogglePreferences() {
   const policyToggle = document.getElementById('policyToggle');
   const compatToggle = document.getElementById('compatToggle');
+  const verifyToggle = document.getElementById('verifyDomainsToggle');
   if (!policyToggle || !compatToggle) return;
 
   if (Object.prototype.hasOwnProperty.call(userPreferences, 'policyToggle')) {
@@ -1367,6 +1689,9 @@ function applyStoredTogglePreferences() {
   }
   if (Object.prototype.hasOwnProperty.call(userPreferences, 'compatToggle')) {
     compatToggle.checked = Boolean(userPreferences.compatToggle);
+  }
+  if (verifyToggle && Object.prototype.hasOwnProperty.call(userPreferences, 'verifyDomains')) {
+    verifyToggle.checked = Boolean(userPreferences.verifyDomains);
   }
 }
 
@@ -1419,8 +1744,10 @@ function resetPreferenceDefaults() {
 
   const policyToggle = document.getElementById('policyToggle');
   const compatToggle = document.getElementById('compatToggle');
+  const verifyToggle = document.getElementById('verifyDomainsToggle');
   if (policyToggle) policyToggle.checked = true;
   if (compatToggle) compatToggle.checked = false;
+  if (verifyToggle) verifyToggle.checked = true;
 
   const iterations = document.getElementById('iterations');
   if (iterations) iterations.value = '100000';
