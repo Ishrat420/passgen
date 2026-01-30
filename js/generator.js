@@ -44,31 +44,28 @@ export class PasswordGenerator {
   }
 
   static normalizeSite(site) {
-    const canonicalize = value => {
-      if (value == null) return '';
-      let normalized = String(value).toLowerCase().trim().replace(/^www\./, '');
-
-      // Align bare inputs like "facebook" with their common ".com" hostname so
-      // both generate the same password. Only strip ".com" when it is the sole
-      // suffix (e.g. "example.com"), preserving other subdomains such as
-      // "mail.example.com".
-      const dotMatches = normalized.match(/\./g) || [];
-      if (dotMatches.length === 1 && normalized.endsWith('.com')) {
-        normalized = normalized.slice(0, -4);
-      }
-
-      return normalized;
-    };
-
     const rawSite = site == null ? '' : String(site);
+    const trimmed = rawSite.trim();
+    if (!trimmed) return '';
 
+    const isUrlLike =
+      /:\/\//.test(trimmed) ||
+      /^www\./i.test(trimmed) ||
+      trimmed.includes('.');
+    if (!isUrlLike) return trimmed;
+
+    let hostname = trimmed.toLowerCase();
     try {
-      let input = rawSite.trim();
-      if (!input.includes('://')) input = 'https://' + input;
-      return canonicalize(new URL(input).hostname);
+      let input = hostname;
+      if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(input)) {
+        input = `https://${input}`;
+      }
+      hostname = new URL(input).hostname;
     } catch {
-      return canonicalize(rawSite);
+      // Fall back to raw input when URL parsing fails.
     }
+
+    return hostname.toLowerCase().trim().replace(/^www\./, '').replace(/\.+$/, '');
   }
 
   normalizeSite(site) {
@@ -101,12 +98,14 @@ export class PasswordGenerator {
     return raw;
   }
 
-  async generate({ site, account = '', secret, counter = '0' }) {
+  async generate({ site, account = '', secret, counter = '0', normalizeSite = true }) {
     if (/[|]/.test(site) || /[|]/.test(secret) || /[|]/.test(account)) {
       throw new Error('Inputs may not contain "|" character');
     }
 
-    const normalizedSite = PasswordGenerator.normalizeSite(site);
+    const normalizedSite = normalizeSite
+      ? PasswordGenerator.normalizeSite(site)
+      : String(site ?? '').trim();
     const normalizedAccount = PasswordGenerator.normalizeAccount(account);
     const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
     const combined = normalizedAccount
