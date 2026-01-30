@@ -330,17 +330,36 @@ small {
 }
 
 .domain-status__icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   color: #6b6b6b;
   background: rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(0, 0, 0, 0.12);
   flex-shrink: 0;
+  line-height: 1;
+}
+
+.domain-status__text {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.domain-status--label {
+  color: #3e3a4d;
+  background: rgba(98, 60, 164, 0.08);
+  border-color: rgba(98, 60, 164, 0.2);
+}
+
+.domain-status--label .domain-status__icon {
+  background: #3f2d7a;
+  border-color: #3f2d7a;
+  color: #fff;
+  font-size: 0.7rem;
 }
 
 .domain-status__action {
@@ -1398,6 +1417,7 @@ details[open] > summary::after {
   font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-size: 0.85rem;
   resize: vertical;
+  box-sizing: border-box;
 }
 
 .sync-actions {
@@ -1463,6 +1483,7 @@ details[open] > summary::after {
   font-size: 1.1rem;
   letter-spacing: 0.25em;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .sync-status {

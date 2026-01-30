@@ -728,7 +728,7 @@ function initDomainVerification() {
 
     if (status === DOMAIN_STATUS.LABEL) {
       statusEl.classList.add('domain-status--label');
-      statusIcon.textContent = 'ℹ';
+      statusIcon.textContent = '🏷';
       statusText.textContent = 'Saved as label';
     } else if (status === DOMAIN_STATUS.CHECKING) {
       statusEl.classList.add('domain-status--checking');
