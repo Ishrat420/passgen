@@ -304,6 +304,10 @@ small {
   color: #555;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .field-helper {
   display: block;
   margin-top: 0.35rem;
@@ -315,6 +319,7 @@ small {
   margin-top: 0.4rem;
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
   gap: 0.45rem;
   font-size: 0.78rem;
   color: #6b6b6b;

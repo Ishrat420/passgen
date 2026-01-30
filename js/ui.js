@@ -729,7 +729,7 @@ function initDomainVerification() {
     if (status === DOMAIN_STATUS.LABEL) {
       statusEl.classList.add('domain-status--label');
       statusIcon.textContent = 'ℹ';
-      statusText.textContent = 'Saved as a label only';
+      statusText.textContent = 'Saved as label';
     } else if (status === DOMAIN_STATUS.CHECKING) {
       statusEl.classList.add('domain-status--checking');
       statusIcon.textContent = '';
