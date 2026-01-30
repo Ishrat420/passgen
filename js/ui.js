@@ -785,7 +785,13 @@ function initDomainVerification() {
     domainState.kind = parsed.kind;
     domainState.labelValue = parsed.labelValue;
 
-    if (!domainState.verifyEnabled || !trimmedValue) {
+    if (!trimmedValue) {
+      clearTimeout(domainCheckTimer);
+      hideStatus();
+      return;
+    }
+
+    if (!domainState.verifyEnabled) {
       clearTimeout(domainCheckTimer);
       hideStatus();
       return;
