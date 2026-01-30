@@ -430,6 +430,19 @@ details {
   font-size: 0.85rem;
 }
 
+.advanced-verify-row {
+  width: min(100%, 430px);
+  margin-bottom: 0.85rem;
+}
+
+.setting-row--compact {
+  padding: 0.6rem 0.85rem;
+}
+
+#resetAppBtn {
+  margin-top: 0.25rem;
+}
+
 /* Toggle */
 .setting-stack {
   display: flex;
