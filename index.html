@@ -27,6 +27,11 @@
         <div class="field-group">
           <label class="field-label" for="website">Website or App Name</label>
           <input id="website" class="field-input" placeholder="e.g. facebook.com">
+          <div id="domainStatus" class="domain-status" role="status" aria-live="polite" hidden>
+            <span class="domain-status__icon" aria-hidden="true"></span>
+            <span class="domain-status__text"></span>
+            <button type="button" id="domainStatusAction" class="domain-status__action">Saved as label instead</button>
+          </div>
         </div>
       </div>
 
@@ -111,6 +116,7 @@
           </label>
         </div>
         <small id="compatHint" class="hint" style="display:none;">Disabled while Character Policy is on</small>
+
       </div>
 
       <div class="action-bar">
@@ -164,6 +170,16 @@
             <label class="field-label" for="balloonDelta">Balloon Mixing Rounds (Δ)</label>
             <input type="number" id="balloonDelta" class="field-input" value="3" min="1">
           </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-copy">
+            <span class="setting-title">Verify domains</span>
+            <span class="setting-description">Check domain names and normalize verified entries.</span>
+          </div>
+          <label class="switch" for="verifyDomainsToggle">
+            <input type="checkbox" id="verifyDomainsToggle" checked>
+            <span class="slider"></span>
+          </label>
         </div>
         <button id="resetAppBtn" class="danger-btn" type="button">Reset All App Data</button>
         <small class="advanced-hint">
