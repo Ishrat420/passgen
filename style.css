@@ -311,6 +311,102 @@ small {
   font-size: 0.82rem;
 }
 
+.domain-status {
+  margin-top: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: #6b6b6b;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.domain-status__icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  color: #6b6b6b;
+  background: rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.domain-status__action {
+  border: none;
+  background: none;
+  color: #4a4a4a;
+  font-size: 0.76rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.domain-status__action:hover,
+.domain-status__action:focus-visible {
+  color: #222;
+}
+
+.domain-status--checking .domain-status__icon {
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: rgba(0, 0, 0, 0.5);
+  background: transparent;
+  animation: domain-spin 0.9s linear infinite;
+}
+
+.domain-status--verified {
+  color: #2f6e4e;
+  border-color: rgba(47, 110, 78, 0.25);
+  background: rgba(47, 110, 78, 0.08);
+}
+
+.domain-status--verified .domain-status__icon {
+  color: #2f6e4e;
+  background: rgba(47, 110, 78, 0.15);
+  border-color: rgba(47, 110, 78, 0.4);
+}
+
+.domain-status__icon--tick {
+  animation: domain-tick 0.2s ease-out;
+}
+
+.domain-status--unverified {
+  color: #666;
+}
+
+.domain-status--unverified .domain-status__icon {
+  color: #666;
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+@keyframes domain-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes domain-tick {
+  from {
+    transform: scale(0.6);
+    opacity: 0.3;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 details {
   margin-top: 0.5rem;
 }
@@ -839,6 +935,20 @@ details[open] > summary::after {
 }
 
 .history-item__heading .history-item__algorithm {
+  flex-shrink: 0;
+}
+
+.history-item__badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #2f6e4e;
+  background: rgba(47, 110, 78, 0.12);
+  border: 1px solid rgba(47, 110, 78, 0.3);
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  align-self: center;
   flex-shrink: 0;
 }
 
