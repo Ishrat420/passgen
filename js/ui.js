@@ -758,8 +758,9 @@ function initDomainVerification() {
   const handleInputUpdate = event => {
     const rawValue = siteInput.value ?? '';
     const trimmedValue = String(rawValue).trim();
-    if (event?.type === 'input' && rawValue !== '') {
+    if (event?.type === 'input' && event.isTrusted) {
       domainState.hasTyped = true;
+      domainState.userInteracted = true;
     }
     if (trimmedValue !== domainState.labelValue) {
       domainState.forceLabel = false;
@@ -775,19 +776,58 @@ function initDomainVerification() {
     domainState.labelValue = parsed.labelValue;
     domainState.domainValue = parsed.domainValue;
 
-    if (!domainState.userInteracted || !domainState.hasTyped) {
+    if (['input', 'change', 'focus'].includes(event?.type)) {
+      clearTimeout(labelStatusTimer);
       hideStatus();
+    }
+  };
+
+  const showStatusForCurrentValue = async ({ allowWhileFocused = false } = {}) => {
+    if (!domainStatusUI) return;
+    if (!verifyToggle.checked) {
+      domainStatusUI.hideStatus();
+      return;
+    }
+    if (!domainState.hasTyped || !domainState.userInteracted) {
+      domainStatusUI.hideStatus();
+      return;
+    }
+    if (!allowWhileFocused && document.activeElement === siteInput) {
+      domainStatusUI.hideStatus();
       return;
     }
 
-    clearTimeout(labelStatusTimer);
-    hideStatus();
+    const parsed = resolveSiteInput(siteInput.value ?? '', {
+      verifyEnabled: true,
+      forceLabel: domainState.forceLabel
+    });
+
+    if (!parsed.labelValue) {
+      domainStatusUI.hideStatus();
+      return;
+    }
+
+    if (parsed.kind === 'label') {
+      domainStatusUI.setStatus(DOMAIN_STATUS.LABEL);
+      return;
+    }
+
+    if (domainVerificationCache.has(parsed.domainValue)) {
+      domainStatusUI.setStatus(domainVerificationCache.get(parsed.domainValue));
+      return;
+    }
+
+    domainStatusUI.setStatus(DOMAIN_STATUS.CHECKING);
+    const result = await verifyDomain(parsed.domainValue);
+    domainVerificationCache.set(parsed.domainValue, result);
+    domainStatusUI.setStatus(result);
   };
 
   siteInput.addEventListener('input', handleInputUpdate);
   siteInput.addEventListener('change', handleInputUpdate);
   siteInput.addEventListener('blur', event => {
     handleInputUpdate(event);
+    void showStatusForCurrentValue();
   });
   siteInput.addEventListener('keydown', event => {
     if (event.isTrusted) domainState.userInteracted = true;
@@ -806,21 +846,32 @@ function initDomainVerification() {
   verifyToggle.addEventListener('change', () => {
     domainState.verifyEnabled = verifyToggle.checked;
     domainState.forceLabel = false;
-    handleInputUpdate();
+    handleInputUpdate({ type: 'change' });
+    if (verifyToggle.checked) {
+      void showStatusForCurrentValue();
+    } else {
+      hideStatus();
+    }
   });
 
   actionButton.addEventListener('click', () => {
     domainState.forceLabel = true;
     handleInputUpdate();
+    void showStatusForCurrentValue();
   });
 
   handleInputUpdate();
+  domainStatusUI.hideStatus();
 }
 
 async function showDomainStatusForGeneration(rawValue) {
   if (!domainStatusUI) return;
   const verifyToggle = document.getElementById('verifyDomainsToggle');
   if (!verifyToggle || !verifyToggle.checked) {
+    domainStatusUI.hideStatus();
+    return;
+  }
+  if (!domainState.hasTyped || !domainState.userInteracted) {
     domainStatusUI.hideStatus();
     return;
   }
