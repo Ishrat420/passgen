@@ -61,25 +61,13 @@ function ensureShortId(version = {}) {
   };
 }
 
-async function normalizeAccountFields(entry = {}) {
+function normalizeAccountFields(entry = {}) {
   if (!entry) return entry;
-  const { accountId, accountLabel, accountHash, ...rest } = entry;
+  const { accountId, accountLabel, accountHash, account, ...rest } = entry;
   const trimmedLabel = typeof accountLabel === 'string' ? accountLabel.trim() : '';
-  let trimmedHash = typeof accountHash === 'string' ? accountHash.trim() : '';
-  const normalizedAccountId = typeof accountId === 'string' ? accountId.trim() : '';
-
-  if (!trimmedHash && normalizedAccountId) {
-    try {
-      const { hash } = await PasswordGenerator.computeAccountHash(normalizedAccountId);
-      trimmedHash = hash;
-    } catch {
-      // Ignore hashing errors and keep the existing hash value.
-    }
-  }
 
   const normalized = { ...rest };
   if (trimmedLabel) normalized.accountLabel = trimmedLabel;
-  if (trimmedHash) normalized.accountHash = trimmedHash;
   return normalized;
 }
 
@@ -100,7 +88,7 @@ async function ensureRecipeIdentifiers(version = {}) {
   const baseEntry = hasParameterChanges
     ? { ...withShort, parameters: normalizedParameters }
     : withShort;
-  const sanitizedEntry = await normalizeAccountFields(baseEntry);
+  const sanitizedEntry = normalizeAccountFields(baseEntry);
 
   const id = typeof sanitizedEntry.id === 'string' ? sanitizedEntry.id : '';
   if (id.length === 64) return sanitizedEntry;
@@ -110,17 +98,14 @@ async function ensureRecipeIdentifiers(version = {}) {
   }
 
   try {
-    const accountHash = typeof baseEntry.accountHash === 'string' ? baseEntry.accountHash : '';
     const { digest } = await PasswordGenerator.computeRecipeId({
       algorithm: baseEntry.algorithm,
       site: baseEntry.site,
-      account: baseEntry.account ?? '',
       counter: baseEntry.counter ?? '0',
       length: baseEntry.length,
       policyOn: Boolean(baseEntry.policyOn),
       compatMode: Boolean(baseEntry.compatMode),
-      parameters: normalizedParameters,
-      accountHash
+      parameters: normalizedParameters
     });
     if (digest && digest.length === 64) {
       return {
@@ -373,14 +358,12 @@ export async function exportRegistrySnapshot() {
         id: version.id,
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
-        account: version.account ?? '',
         algorithm: version.algorithm,
         length: version.length,
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
         accountLabel: version.accountLabel,
-        accountHash: version.accountHash,
         parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version || index + 1
@@ -423,14 +406,12 @@ export async function importRegistrySnapshot(snapshot = {}) {
         id: version.id,
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
-        account: version.account ?? '',
         algorithm: version.algorithm,
         length: version.length,
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
         accountLabel: version.accountLabel,
-        accountHash: version.accountHash,
         parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version

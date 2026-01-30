@@ -49,15 +49,6 @@ function parseNumericCounterValue(counter) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function hasMatchingAccount(version, normalizedAccount, accountHash) {
-  if (accountHash) {
-    return typeof version.accountHash === 'string' && version.accountHash === accountHash;
-  }
-
-  const versionAccount = PasswordGenerator.normalizeAccount(version.account ?? '');
-  return versionAccount === normalizedAccount;
-}
-
 function hasMatchingParameters(version, parameters) {
   const versionParams = PasswordGenerator.normalizeParameters(version.parameters);
   return (
@@ -75,9 +66,7 @@ function findLatestSeriesVersion(registry, {
   length,
   policyOn,
   compatMode,
-  parameters,
-  normalizedAccount,
-  accountHash
+  parameters
 }) {
   if (!registry || !Array.isArray(registry.versions)) return null;
 
@@ -87,7 +76,6 @@ function findLatestSeriesVersion(registry, {
     if (version.length !== length) return latest;
     if (Boolean(version.policyOn) !== Boolean(policyOn)) return latest;
     if (Boolean(version.compatMode) !== Boolean(compatMode)) return latest;
-    if (!hasMatchingAccount(version, normalizedAccount, accountHash)) return latest;
     if (!hasMatchingParameters(version, parameters)) return latest;
 
     if (!latest) return version;
@@ -104,9 +92,7 @@ function getCounterSequenceError({
   length,
   policyOn,
   compatMode,
-  parameters,
-  normalizedAccount,
-  accountHash
+  parameters
 }) {
   const nextCounterValue = parseNumericCounterValue(normalizedCounter);
   if (nextCounterValue === null) return '';
@@ -116,9 +102,7 @@ function getCounterSequenceError({
     length,
     policyOn,
     compatMode,
-    parameters,
-    normalizedAccount,
-    accountHash
+    parameters
   });
   if (!latestSeries) return '';
 
@@ -244,7 +228,6 @@ function initEventHandlers() {
 
 async function handleGenerate() {
   const site = document.getElementById('website').value.trim();
-  const accountId = document.getElementById('accountId').value.trim();
   const accountLabel = document.getElementById('accountLabel').value.trim();
   const secretInput = document.getElementById('secret');
   const secret = secretInput.value.trim();
@@ -306,7 +289,6 @@ async function handleGenerate() {
   }
 
   const normalizedSite = PasswordGenerator.normalizeSite(site);
-  const normalizedAccount = PasswordGenerator.normalizeAccount(accountId);
   const parameterSettings = PasswordGenerator.normalizeParameters({
     iterations,
     argonMem,
@@ -315,9 +297,6 @@ async function handleGenerate() {
     balloonTime,
     balloonDelta
   });
-  const { short: accountHashShort, hash: accountHash } = accountId
-    ? await PasswordGenerator.computeAccountHash(accountId)
-    : { short: '', hash: '' };
   const existingRegistry = await getRegistryEntry(normalizedSite);
   const counterSequenceError = getCounterSequenceError({
     registry: existingRegistry,
@@ -326,9 +305,7 @@ async function handleGenerate() {
     length,
     policyOn,
     compatMode,
-    parameters: parameterSettings,
-    normalizedAccount,
-    accountHash
+    parameters: parameterSettings
   });
   if (counterSequenceError) {
     showValidationError(counterSequenceError);
@@ -346,9 +323,8 @@ async function handleGenerate() {
       parameters: { iterations, argonMem, scryptN, balloonSpace, balloonTime, balloonDelta }
     });
 
-    const { password, normalizedSite, normalizedAccount } = await generator.generate({
+    const { password, normalizedSite } = await generator.generate({
       site,
-      account: accountId,
       secret,
       counter: normalizedCounter
     });
@@ -368,24 +344,19 @@ async function handleGenerate() {
     const { digest: recipeDigest, short: recipeShort } = await PasswordGenerator.computeRecipeId({
       algorithm,
       site: normalizedSite,
-      account: normalizedAccount,
       counter: normalizedCounter,
       length: effectiveLength,
       policyOn,
       compatMode,
-      parameters: generator.parameters,
-      accountHash
+      parameters: generator.parameters
     });
 
-    document.getElementById('recipeInfo').innerText = accountHashShort
-      ? `Recipe ID ${recipeShort} · Account #${accountHashShort}`
-      : 'Recipe ID ' + recipeShort;
+    document.getElementById('recipeInfo').innerText = 'Recipe ID ' + recipeShort;
 
     const recipeEntry = {
       id: recipeDigest,
       shortId: recipeShort,
       site: normalizedSite,
-      account: normalizedAccount,
       algorithm,
       length: effectiveLength,
       counter: normalizedCounter,
@@ -393,8 +364,7 @@ async function handleGenerate() {
       compatMode,
       date: new Date().toISOString(),
       parameters: generator.parameters,
-      ...(accountLabel ? { accountLabel } : {}),
-      ...(accountHash ? { accountHash } : {})
+      ...(accountLabel ? { accountLabel } : {})
     };
 
     const registryResult = await recordRecipeUsage(recipeEntry, existingRegistry);
@@ -622,7 +592,7 @@ function updateToggleVisual(toggle, label, lock) {
 
 function setupReactiveFields() {
   const reactiveFields = [
-    'website', 'accountId', 'accountLabel', 'secret', 'algorithm', 'counter', 'length',
+    'website', 'accountLabel', 'secret', 'algorithm', 'counter', 'length',
     'policyToggle', 'compatToggle', 'iterations', 'argonMem', 'scryptN',
     'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
@@ -882,9 +852,7 @@ async function refreshHistoryList(filter = '') {
     const parameterSettings = PasswordGenerator.normalizeParameters(recipe.parameters);
     const tuningParts = formatRecipeTuning(recipe.algorithm, parameterSettings);
 
-    const accountSummary = [recipe.accountLabel, recipe.accountHash ? `#${recipe.accountHash}` : '']
-      .filter(Boolean)
-      .join(' ');
+    const accountSummary = recipe.accountLabel || '';
     const detailParts = [
       `ID: ${shortId}`,
       ...(accountSummary ? [`Account: ${accountSummary}`] : []),
@@ -1043,7 +1011,7 @@ function applyRecipeToForm(recipe) {
   if (!recipe) return;
 
   setTextFieldValue('website', recipe.site || '', 'input');
-  setTextFieldValue('accountId', recipe.account || '', 'input');
+  setTextFieldValue('accountLabel', recipe.accountLabel || '', 'input');
 
   const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
   setTextFieldValue('counter', normalizedCounter, 'change');
@@ -1210,7 +1178,6 @@ function copyToClipboard() {
 
 async function explainPassword() {
   const site = document.getElementById('website').value.trim();
-  const accountId = document.getElementById('accountId').value.trim();
   const secret = document.getElementById('secret').value.trim();
   const counter = document.getElementById('counter').value.trim() || '0';
   const algorithm = document.getElementById('algorithm').value;
@@ -1234,21 +1201,15 @@ async function explainPassword() {
   });
 
   const normalizedSite = PasswordGenerator.normalizeSite(site);
-  const normalizedAccount = PasswordGenerator.normalizeAccount(accountId);
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
-  const { short: accountHash } = accountId
-    ? await PasswordGenerator.computeAccountHash(accountId)
-    : { short: '' };
   const { short: recipeId } = await PasswordGenerator.computeRecipeId({
     algorithm,
     site: normalizedSite,
-    account: normalizedAccount,
     counter: normalizedCounter,
     length,
     policyOn,
     compatMode,
-    parameters: parameterSettings,
-    accountHash
+    parameters: parameterSettings
   });
 
   const box = document.getElementById('explainBox');
@@ -1256,7 +1217,6 @@ async function explainPassword() {
   box.textContent = [
     `Algorithm: ${algorithm}`,
     `Normalized site: ${normalizedSite}`,
-    `Normalized account: ${normalizedAccount || '(none)'}`,
     `Counter: ${normalizedCounter}`,
     `Length: ${length}`,
     `Deterministic policy: ${policyOn}`,
