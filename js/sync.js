@@ -17,6 +17,8 @@ const quickState = {
 let currentMode = 'send';
 let isPreparingQuickBundle = false;
 let quickScannerDetector = null;
+let quickScannerCanvas = null;
+let quickScannerContext = null;
 let quickScannerStream = null;
 let quickScannerFrameId = 0;
 let isQuickScannerActive = false;
@@ -249,7 +251,11 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
 
     try {
       if (!quickScannerDetector && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-        quickScannerDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        try {
+          quickScannerDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        } catch (error) {
+          quickScannerDetector = new window.BarcodeDetector();
+        }
       }
     } catch (error) {
       quickScannerDetector = null;
@@ -287,8 +293,27 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
       return;
     }
 
+    if (!quickScannerCanvas) {
+      quickScannerCanvas = document.createElement('canvas');
+    }
+    const width = quickScannerVideo.videoWidth || 0;
+    const height = quickScannerVideo.videoHeight || 0;
+    if (width === 0 || height === 0) {
+      quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
+      return;
+    }
+    if (quickScannerCanvas.width !== width) quickScannerCanvas.width = width;
+    if (quickScannerCanvas.height !== height) quickScannerCanvas.height = height;
+    if (!quickScannerContext) {
+      quickScannerContext = quickScannerCanvas.getContext('2d');
+    }
+
     try {
-      const barcodes = await quickScannerDetector.detect(quickScannerVideo);
+      if (!quickScannerContext) {
+        throw new Error('Canvas context unavailable.');
+      }
+      quickScannerContext.drawImage(quickScannerVideo, 0, 0, width, height);
+      const barcodes = await quickScannerDetector.detect(quickScannerCanvas);
       const hit = barcodes.find(code => typeof code.rawValue === 'string' && code.rawValue.trim().length > 0);
       if (hit) {
         const value = hit.rawValue.trim();
