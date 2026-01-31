@@ -17,6 +17,8 @@ const quickState = {
 let currentMode = 'send';
 let isPreparingQuickBundle = false;
 let quickScannerDetector = null;
+let quickScannerCanvas = null;
+let quickScannerContext = null;
 let quickScannerStream = null;
 let quickScannerFrameId = 0;
 let isQuickScannerActive = false;
@@ -249,13 +251,18 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
 
     try {
       if (!quickScannerDetector && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-        quickScannerDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        try {
+          quickScannerDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        } catch (error) {
+          quickScannerDetector = new window.BarcodeDetector();
+        }
       }
     } catch (error) {
       quickScannerDetector = null;
     }
 
-    if (!quickScannerDetector) {
+    const hasJsQr = typeof window !== 'undefined' && typeof window.jsQR === 'function';
+    if (!quickScannerDetector && !hasJsQr) {
       updateQuickImportStatus('QR scanning is not supported in this browser. Paste the bundle manually.', true);
       return;
     }
@@ -280,18 +287,38 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   }
 
   async function scanQuickFrame() {
-    if (!isQuickScannerActive || !quickScannerDetector || !quickScannerVideo) return;
+    if (!isQuickScannerActive || !quickScannerVideo) return;
+    const hasDetector = !!quickScannerDetector;
+    const hasJsQr = typeof window !== 'undefined' && typeof window.jsQR === 'function';
+    if (!hasDetector && !hasJsQr) return;
 
     if (quickScannerVideo.readyState < 2) {
       quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
       return;
     }
 
+    if (!quickScannerCanvas) {
+      quickScannerCanvas = document.createElement('canvas');
+    }
+    const width = quickScannerVideo.videoWidth || 0;
+    const height = quickScannerVideo.videoHeight || 0;
+    if (width === 0 || height === 0) {
+      quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
+      return;
+    }
+    if (quickScannerCanvas.width !== width) quickScannerCanvas.width = width;
+    if (quickScannerCanvas.height !== height) quickScannerCanvas.height = height;
+    if (!quickScannerContext) {
+      quickScannerContext = quickScannerCanvas.getContext('2d');
+    }
+
     try {
-      const barcodes = await quickScannerDetector.detect(quickScannerVideo);
-      const hit = barcodes.find(code => typeof code.rawValue === 'string' && code.rawValue.trim().length > 0);
-      if (hit) {
-        const value = hit.rawValue.trim();
+      if (!quickScannerContext) {
+        throw new Error('Canvas context unavailable.');
+      }
+      quickScannerContext.drawImage(quickScannerVideo, 0, 0, width, height);
+      const value = await detectQuickPayload(width, height);
+      if (value) {
         if (quickInputTextarea) {
           quickInputTextarea.value = value;
         }
@@ -305,6 +332,25 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     }
 
     quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
+  }
+
+  async function detectQuickPayload(width, height) {
+    if (!quickScannerCanvas || !quickScannerContext) return null;
+    if (quickScannerDetector) {
+      const barcodes = await quickScannerDetector.detect(quickScannerCanvas);
+      const hit = barcodes.find(code => typeof code.rawValue === 'string' && code.rawValue.trim().length > 0);
+      if (hit) {
+        return hit.rawValue.trim();
+      }
+    }
+    if (typeof window !== 'undefined' && typeof window.jsQR === 'function') {
+      const imageData = quickScannerContext.getImageData(0, 0, width, height);
+      const code = window.jsQR(imageData.data, width, height);
+      if (code && typeof code.data === 'string' && code.data.trim().length > 0) {
+        return code.data.trim();
+      }
+    }
+    return null;
   }
 
   function closeQuickScanner({ silent = false, restoreFocus = true } = {}) {
@@ -362,7 +408,7 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     typeof navigator !== 'undefined' &&
     !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') &&
     typeof window !== 'undefined' &&
-    'BarcodeDetector' in window;
+    ('BarcodeDetector' in window || typeof window.jsQR === 'function');
 
   if (quickScanBtn && !canAttemptScan) {
     quickScanBtn.disabled = true;
