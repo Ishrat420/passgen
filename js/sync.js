@@ -247,8 +247,19 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
       return;
     }
 
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      updateQuickImportStatus('Camera access requires HTTPS or localhost. Serve this page securely to scan.', true);
+      return;
+    }
+
     try {
       if (!quickScannerDetector && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+        const supportedFormats = typeof window.BarcodeDetector.getSupportedFormats === 'function'
+          ? await window.BarcodeDetector.getSupportedFormats()
+          : ['qr_code'];
+        if (!supportedFormats.includes('qr_code')) {
+          throw new Error('QR format unsupported');
+        }
         quickScannerDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
       }
     } catch (error) {
@@ -266,7 +277,7 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
       quickScannerStatus.textContent = 'Opening camera…';
       quickScanner.classList.remove('hidden');
       quickScannerVideo.srcObject = null;
-      quickScannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      quickScannerStream = await requestQuickScannerStream();
       quickScannerVideo.srcObject = quickScannerStream;
       isQuickScannerActive = true;
       await quickScannerVideo.play();
@@ -275,7 +286,7 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
       quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
     } catch (error) {
       closeQuickScanner({ silent: true });
-      updateQuickImportStatus('Camera permission denied. Paste the bundle manually.', true);
+      updateQuickImportStatus(describeQuickScannerError(error), true);
     }
   }
 
@@ -341,6 +352,42 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     quickImportStatus.className = `sync-status${isError ? ' sync-status--error' : ' sync-status--success'}`;
   }
 
+  async function requestQuickScannerStream() {
+    const preferredConstraints = {
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    };
+
+    try {
+      return await navigator.mediaDevices.getUserMedia(preferredConstraints);
+    } catch (error) {
+      if (error && (error.name === 'OverconstrainedError' || error.name === 'NotFoundError')) {
+        return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+      throw error;
+    }
+  }
+
+  function describeQuickScannerError(error) {
+    if (!error) {
+      return 'Unable to access the camera. Paste the bundle manually.';
+    }
+
+    switch (error.name) {
+      case 'NotAllowedError':
+      case 'SecurityError':
+        return 'Camera permission denied. Allow camera access and try again.';
+      case 'NotFoundError':
+        return 'No camera was found on this device.';
+      case 'NotReadableError':
+        return 'Camera is already in use by another app. Close it and try again.';
+      case 'OverconstrainedError':
+        return 'The preferred camera is unavailable. Try a different device.';
+      default:
+        return 'Unable to access the camera. Paste the bundle manually.';
+    }
+  }
+
   function resetQuickState() {
     quickState.passphrase = '';
     quickState.payload = '';
@@ -367,6 +414,11 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   if (quickScanBtn && !canAttemptScan) {
     quickScanBtn.disabled = true;
     quickScanBtn.title = 'QR scanning is not supported in this browser.';
+  }
+
+  if (quickScanBtn && typeof window !== 'undefined' && window.isSecureContext === false) {
+    quickScanBtn.disabled = true;
+    quickScanBtn.title = 'Camera access requires HTTPS or localhost.';
   }
 
   quickCopyPassphraseBtn?.addEventListener('click', handleCopyQuickPassphrase);
