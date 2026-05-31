@@ -177,6 +177,21 @@ function updateLengthControlForOutputType() {
   }
 }
 
+function isPinOutputSelected() {
+  return normalizeOutputType(document.getElementById('outputType')?.value) === 'pin';
+}
+
+function setHintVisibility(hint, show, message = null) {
+  if (!hint) return;
+  if (!('defaultText' in hint.dataset)) {
+    hint.dataset.defaultText = hint.textContent;
+  }
+
+  hint.textContent = message || hint.dataset.defaultText;
+  hint.style.display = show ? 'block' : 'none';
+  hint.classList.toggle('show', show);
+}
+
 function findLatestSeriesVersion(registry, {
   algorithm,
   outputType,
@@ -665,6 +680,7 @@ function initToggleExclusivity({ onStateChange } = {}) {
   const compatLabel = document.querySelector('label[for="compatToggle"]');
   const policyHint = document.getElementById('policyHint');
   const compatHint = document.getElementById('compatHint');
+  const outputTypeSelect = document.getElementById('outputType');
 
   const policyLock = createLockIcon();
   const compatLock = createLockIcon();
@@ -684,14 +700,23 @@ function initToggleExclusivity({ onStateChange } = {}) {
   };
 
   const applyExclusivity = () => {
+    if (isPinOutputSelected()) {
+      policyToggle.disabled = true;
+      compatToggle.disabled = true;
+      setHintVisibility(policyHint, true, 'Character Policy does not apply to PIN output.');
+      setHintVisibility(compatHint, true, 'Compatibility Mode does not apply to PIN output.');
+      updateUI();
+      return;
+    }
+
     compatToggle.disabled = policyToggle.checked;
     if (policyToggle.checked) compatToggle.checked = false;
 
     policyToggle.disabled = compatToggle.checked;
     if (compatToggle.checked) policyToggle.checked = false;
 
-    if (policyHint) policyHint.style.display = compatToggle.disabled ? 'block' : 'none';
-    if (compatHint) compatHint.style.display = policyToggle.disabled ? 'block' : 'none';
+    setHintVisibility(policyHint, compatToggle.disabled);
+    setHintVisibility(compatHint, policyToggle.disabled);
 
     updateUI();
   };
@@ -706,6 +731,10 @@ function initToggleExclusivity({ onStateChange } = {}) {
   });
 
   compatToggle.addEventListener('change', () => {
+    enforceState();
+  });
+
+  outputTypeSelect?.addEventListener('change', () => {
     enforceState();
   });
 
@@ -1382,7 +1411,7 @@ function applyRecipeToForm(recipe) {
   setTextFieldValue('counter', normalizedCounter, 'change');
 
   const normalizedOutputType = normalizeOutputType(recipe.outputType);
-  setSelectFieldValue('outputType', normalizedOutputType);
+  setSelectFieldValue('outputType', normalizedOutputType, { forceEvent: true });
   updateLengthControlForOutputType();
 
   const parsedLength = Number.parseInt(recipe.length, 10);
@@ -1394,8 +1423,8 @@ function applyRecipeToForm(recipe) {
 
   setSelectFieldValue('algorithm', recipe.algorithm);
 
-  setToggleValue('policyToggle', Boolean(recipe.policyOn));
-  setToggleValue('compatToggle', Boolean(recipe.compatMode));
+  setToggleValue('policyToggle', Boolean(recipe.policyOn), { forceEvent: true });
+  setToggleValue('compatToggle', Boolean(recipe.compatMode), { forceEvent: true });
 
   const params = PasswordGenerator.normalizeParameters(recipe.parameters);
   setTextFieldValue('iterations', params.iterations, 'change');
@@ -1427,26 +1456,30 @@ function setTextFieldValue(id, value, eventType = null) {
   }
 }
 
-function setSelectFieldValue(id, value) {
+function setSelectFieldValue(id, value, { forceEvent = false } = {}) {
   const element = document.getElementById(id);
   if (!element) return;
   const allowedValues = Array.from(element.options).map(option => option.value);
   const targetValue = allowedValues.includes(String(value)) ? String(value) : element.value;
-  if (element.value !== targetValue) {
+  const changed = element.value !== targetValue;
+  if (changed) {
     element.value = targetValue;
-    updateFilledState(element);
+  }
+  updateFilledState(element);
+  if (changed || forceEvent) {
     element.dispatchEvent(new Event('change', { bubbles: true }));
-  } else {
-    updateFilledState(element);
   }
 }
 
-function setToggleValue(id, checked) {
+function setToggleValue(id, checked, { forceEvent = false } = {}) {
   const element = document.getElementById(id);
   if (!element) return;
   const normalized = Boolean(checked);
-  if (element.checked !== normalized) {
+  const changed = element.checked !== normalized;
+  if (changed) {
     element.checked = normalized;
+  }
+  if (changed || forceEvent) {
     element.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
