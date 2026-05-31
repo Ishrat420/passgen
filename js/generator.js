@@ -119,9 +119,10 @@ export class PasswordGenerator {
       : String(site ?? '').trim();
     const normalizedAccount = PasswordGenerator.normalizeAccount(account);
     const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
+    const credentialTrack = this.outputType;
     const combined = normalizedAccount
-      ? `${normalizedSite}|${normalizedAccount}|${secret}|${normalizedCounter}`
-      : `${normalizedSite}|${secret}|${normalizedCounter}`;
+      ? `${credentialTrack}|${normalizedSite}|${normalizedAccount}|${secret}|${normalizedCounter}`
+      : `${credentialTrack}|${normalizedSite}|${secret}|${normalizedCounter}`;
 
     let hex;
     switch (this.algorithm) {

@@ -1,6 +1,6 @@
 # passgen
 Passgen is a minimalist, offline-friendly password generator that lets you create strong, consistent passwords using your own secret formula.
-Choose your hashing algorithm (pbkdf2-sha256, Argon2id, SHA) bring your own salt, adjust the output length, and increment password counter all without storing a single thing on cloud. 
+Choose your hashing algorithm (pbkdf2-sha256, Argon2id, SHA), bring your own salt, adjust output length, and increment credential counters all without storing a single thing on cloud. Passwords and PINs use separate tracks, so each output type keeps its own counter, length preference, recipe history, and derivation domain.
 
 ## 🔒 Site normalization
 When you type a website, Passgen normalizes the value before generating a password so the same site always maps to the same key:

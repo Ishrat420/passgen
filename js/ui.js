@@ -28,7 +28,28 @@ const SECRET_REQUIREMENT_MESSAGE =
 
 let userPreferences = {};
 let toggleController = null;
-let lengthManuallyChanged = false;
+const CREDENTIAL_TRACKS = Object.freeze({
+  password: Object.freeze({
+    outputType: 'password',
+    counterKey: 'passwordCounter',
+    legacyCounterKey: 'counter',
+    lengthKey: 'passwordLength',
+    legacyLengthKey: 'length',
+    defaultCounter: '0',
+    defaultLength: 16,
+    counterLabel: 'Password Counter',
+    counterHint: 'Starts with 0. Use it to rotate passwords for the same site without changing your master secret.'
+  }),
+  pin: Object.freeze({
+    outputType: 'pin',
+    counterKey: 'pinCounter',
+    lengthKey: 'pinLength',
+    defaultCounter: '0',
+    defaultLength: 4,
+    counterLabel: 'PIN Counter',
+    counterHint: 'Starts with 0. Use it to rotate PINs for the same site without changing your master secret or password counter.'
+  })
+});
 
 const SIMPLE_ALGORITHMS = new Set(['SHA-256', 'SHA-512', 'BLAKE2b-512', 'BLAKE2s-256', 'HMAC-SHA256']);
 
@@ -182,19 +203,117 @@ function isValidOutputType(outputType) {
   return outputType === 'password' || outputType === 'pin';
 }
 
-function setLengthPreferenceValue(value, { persist = true } = {}) {
+
+function getCredentialTrack(outputType = document.getElementById('outputType')?.value) {
+  return CREDENTIAL_TRACKS[normalizeOutputType(outputType)] || CREDENTIAL_TRACKS.password;
+}
+
+function readStoredTrackValue(track, property) {
+  const key = track[property];
+  if (key && Object.prototype.hasOwnProperty.call(userPreferences, key)) {
+    return userPreferences[key];
+  }
+
+  const legacyKey = track[`legacy${property[0].toUpperCase()}${property.slice(1)}`];
+  if (legacyKey && Object.prototype.hasOwnProperty.call(userPreferences, legacyKey)) {
+    return userPreferences[legacyKey];
+  }
+
+  return undefined;
+}
+
+function sanitizeCounterPreference(value, fallback = '0') {
+  return PasswordGenerator.normalizeCounter(value ?? fallback);
+}
+
+function sanitizeLengthPreference(value, outputType) {
+  const bounds = getLengthBounds(outputType);
+  const parsed = parseInteger(value);
+  if (parsed === null) return getCredentialTrack(outputType).defaultLength;
+  return clamp(parsed, bounds.min, bounds.max);
+}
+
+function getActiveCounterValue() {
+  const counterInput = document.getElementById('counter');
+  return sanitizeCounterPreference(counterInput?.value, getCredentialTrack().defaultCounter);
+}
+
+function getActiveLengthValue(outputType = document.getElementById('outputType')?.value) {
+  const lengthInput = document.getElementById('length');
+  return sanitizeLengthPreference(lengthInput?.value, outputType);
+}
+
+function persistTrackCounter(outputType = document.getElementById('outputType')?.value) {
+  const track = getCredentialTrack(outputType);
+  const value = getActiveCounterValue();
+  userPreferences[track.counterKey] = value;
+  persistPreferences();
+  return value;
+}
+
+function persistTrackLength(outputType = document.getElementById('outputType')?.value) {
+  const track = getCredentialTrack(outputType);
+  const value = getActiveLengthValue(outputType);
+  userPreferences[track.lengthKey] = value;
+  persistPreferences();
+  return value;
+}
+
+function applyCounterForOutputType(outputType = document.getElementById('outputType')?.value) {
+  const counterInput = document.getElementById('counter');
+  if (!counterInput) return;
+
+  const track = getCredentialTrack(outputType);
+  const stored = readStoredTrackValue(track, 'counterKey');
+  counterInput.value = sanitizeCounterPreference(stored, track.defaultCounter);
+  updateFilledState(counterInput);
+}
+
+function applyLengthForOutputType(outputType = document.getElementById('outputType')?.value) {
   const lengthInput = document.getElementById('length');
   if (!lengthInput) return;
 
-  lengthInput.value = String(value);
+  const track = getCredentialTrack(outputType);
+  const stored = readStoredTrackValue(track, 'lengthKey');
+  lengthInput.value = sanitizeLengthPreference(stored, outputType);
   updateFilledState(lengthInput);
-  userPreferences.length = value;
-  if (persist) persistPreferences();
 }
 
-function applyPinDefaultLength({ persist = true } = {}) {
-  if (!isPinOutputSelected() || lengthManuallyChanged) return;
-  setLengthPreferenceValue(4, { persist });
+function updateCredentialTrackControls() {
+  const track = getCredentialTrack();
+  const counterLabel = document.getElementById('counterLabel');
+  const counterHint = document.getElementById('counterHint');
+
+  if (counterLabel) {
+    const tip = counterLabel.querySelector('.info-tip');
+    counterLabel.textContent = track.counterLabel;
+    if (tip) counterLabel.appendChild(tip);
+  }
+  if (counterHint) counterHint.dataset.tip = track.counterHint;
+
+  updateLengthControlForOutputType();
+}
+
+function switchCredentialTrack(nextOutputType) {
+  const currentOutputType = document.getElementById('outputType')?.dataset.activeTrack || 'password';
+  persistTrackCounter(currentOutputType);
+  persistTrackLength(currentOutputType);
+
+  if (document.getElementById('outputType')) {
+    document.getElementById('outputType').dataset.activeTrack = normalizeOutputType(nextOutputType);
+  }
+
+  updateCredentialTrackControls();
+  applyCounterForOutputType(nextOutputType);
+  applyLengthForOutputType(nextOutputType);
+}
+
+function initializeCredentialTrack(outputType = document.getElementById('outputType')?.value) {
+  const outputTypeSelect = document.getElementById('outputType');
+  if (outputTypeSelect) outputTypeSelect.dataset.activeTrack = normalizeOutputType(outputType);
+  updateCredentialTrackControls();
+  applyCounterForOutputType(outputType);
+  applyLengthForOutputType(outputType);
 }
 
 function isPinOutputSelected() {
@@ -341,7 +460,6 @@ function updateFilledState(element) {
 
 window.addEventListener('DOMContentLoaded', () => {
   userPreferences = loadPreferences();
-  lengthManuallyChanged = Object.prototype.hasOwnProperty.call(userPreferences, 'length');
   applyStoredTogglePreferences();
   toggleController = initToggleExclusivity({
     onStateChange: state => {
@@ -356,10 +474,11 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
   initPreferencePersistence();
+  initializeCredentialTrack(document.getElementById('outputType')?.value);
   toggleController?.enforceState({ notify: false });
   initEventHandlers();
   setupReactiveFields();
-  updateLengthControlForOutputType();
+  updateCredentialTrackControls();
   initDomainVerification();
   initAccountLabelSuggestions();
   refreshHistoryList();
@@ -398,10 +517,12 @@ async function handleGenerate() {
   const normalizedCounter = PasswordGenerator.normalizeCounter(counterRaw);
   counterInput.value = normalizedCounter;
   updateFilledState(counterInput);
-  const algorithm = document.getElementById('algorithm').value;
   const outputType = document.getElementById('outputType').value;
+  persistTrackCounter(outputType);
+  const algorithm = document.getElementById('algorithm').value;
   const lengthInput = document.getElementById('length').value;
   const length = Number(lengthInput);
+  persistTrackLength(outputType);
   const policyOn = document.getElementById('policyToggle').checked;
   const compatMode = document.getElementById('compatToggle').checked;
   const iterations = parseInt(document.getElementById('iterations').value, 10);
@@ -791,7 +912,7 @@ function setupReactiveFields() {
     element.addEventListener('input', hideResultBox);
     element.addEventListener('change', hideResultBox);
     if (id === 'outputType') {
-      element.addEventListener('change', updateLengthControlForOutputType);
+      element.addEventListener('change', () => switchCredentialTrack(element.value));
     }
   });
 }
@@ -1165,12 +1286,17 @@ function updateRegistryMessage(site, previousRegistry, registryResult) {
 
   if (!previousRegistry) return;
 
-  const latestVersion = previousRegistry.versions[previousRegistry.versions.length - 1];
-  const { matchedVersion } = registryResult;
+  const { matchedVersion, latestVersion } = registryResult;
+  const activeTrack = normalizeOutputType(latestVersion?.outputType || matchedVersion?.outputType);
+  const trackLabel = activeTrack === 'pin' ? 'PIN' : 'password';
+  const trackVersions = previousRegistry.versions.filter(
+    version => normalizeOutputType(version.outputType) === activeTrack
+  );
+  const latestTrackVersion = trackVersions[trackVersions.length - 1] || latestVersion;
 
   if (matchedVersion) {
     const lastCounter = matchedVersion.counter || '0';
-    messageEl.append(document.createTextNode('💡 You’ve generated this recipe before. Latest saved version for '));
+    messageEl.append(document.createTextNode(`💡 You’ve generated this ${trackLabel} recipe before. Latest saved ${trackLabel} version for `));
 
     const siteStrong = document.createElement('b');
     siteStrong.textContent = site;
@@ -1179,7 +1305,7 @@ function updateRegistryMessage(site, previousRegistry, registryResult) {
     messageEl.append(document.createTextNode(': ('));
 
     const versionStrong = document.createElement('b');
-    versionStrong.textContent = `v${latestVersion.version}`;
+    versionStrong.textContent = `v${latestTrackVersion.version}`;
     messageEl.appendChild(versionStrong);
 
     const formattedDate = new Date(matchedVersion.date).toLocaleDateString();
@@ -1188,7 +1314,7 @@ function updateRegistryMessage(site, previousRegistry, registryResult) {
     messageEl.appendChild(document.createElement('br'));
 
     const counterInfo = document.createElement('small');
-    counterInfo.textContent = 'Last used Counter: ';
+    counterInfo.textContent = `Last used ${trackLabel === 'PIN' ? 'PIN' : 'password'} counter: `;
     const counterCode = document.createElement('code');
     counterCode.textContent = lastCounter;
     counterInfo.appendChild(counterCode);
@@ -1201,8 +1327,10 @@ function updateRegistryMessage(site, previousRegistry, registryResult) {
     hint.textContent = 'Are you using a different Master Key?';
     messageEl.appendChild(hint);
   } else {
-    messageEl.textContent = '🆕 This is a new recipe version (v' +
-      (latestVersion.version + 1) +
+    messageEl.textContent = '🆕 This is a new ' +
+      trackLabel +
+      ' recipe version (v' +
+      latestVersion.version +
       ') for ' +
       site +
       '.';
@@ -1429,12 +1557,13 @@ function applyRecipeToForm(recipe) {
   setTextFieldValue('website', recipe.site || '', 'input');
   setTextFieldValue('accountLabel', recipe.accountLabel || '', 'input');
 
-  const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
-  setTextFieldValue('counter', normalizedCounter, 'change');
-
   const normalizedOutputType = normalizeOutputType(recipe.outputType);
   setSelectFieldValue('outputType', normalizedOutputType, { forceEvent: true });
-  updateLengthControlForOutputType();
+  updateCredentialTrackControls();
+
+  const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
+  setTextFieldValue('counter', normalizedCounter, 'change');
+  persistTrackCounter(normalizedOutputType);
 
   const parsedLength = Number.parseInt(recipe.length, 10);
   const lengthBounds = getLengthBounds(normalizedOutputType);
@@ -1442,6 +1571,7 @@ function applyRecipeToForm(recipe) {
     ? clamp(parsedLength, lengthBounds.min, lengthBounds.max)
     : lengthBounds.min;
   setTextFieldValue('length', sanitizedLength, 'change');
+  persistTrackLength(normalizedOutputType);
 
   setSelectFieldValue('algorithm', recipe.algorithm);
 
@@ -1554,7 +1684,6 @@ async function handleResetAppData() {
     await clearAllData();
     clearPreferences();
     userPreferences = {};
-    lengthManuallyChanged = false;
     resetPreferenceDefaults();
     toggleController?.enforceState({ notify: false });
     await refreshHistoryList();
@@ -1764,30 +1893,21 @@ function initPreferencePersistence() {
     events: ['change']
   });
 
-  registerField({
-    key: 'length',
-    element: document.getElementById('length'),
-    applyStored: (el, stored) => {
-      const bounds = getLengthBounds(document.getElementById('outputType')?.value);
-      return applyNumericPreference(el, stored, bounds.min, bounds.max);
-    },
-    readValue: el => {
-      const bounds = getLengthBounds(document.getElementById('outputType')?.value);
-      return readNumericPreference(el, bounds.min, bounds.max);
-    },
-    events: ['input', 'change']
+  const counterInput = document.getElementById('counter');
+  const lengthInput = document.getElementById('length');
+
+  ['input', 'change'].forEach(eventName => {
+    counterInput?.addEventListener(eventName, () => {
+      persistTrackCounter();
+    });
+    lengthInput?.addEventListener(eventName, () => {
+      persistTrackLength();
+    });
   });
 
-  document.getElementById('length')?.addEventListener('input', () => {
-    lengthManuallyChanged = true;
+  document.getElementById('outputType')?.addEventListener('change', event => {
+    switchCredentialTrack(event.target.value);
   });
-  document.getElementById('length')?.addEventListener('change', () => {
-    lengthManuallyChanged = true;
-  });
-  document.getElementById('outputType')?.addEventListener('change', () => {
-    applyPinDefaultLength();
-  });
-  applyPinDefaultLength();
 
   registerField({
     key: 'iterations',
@@ -1907,12 +2027,19 @@ function resetPreferenceDefaults() {
   if (algorithm) updateFilledState(algorithm);
 
   const outputType = document.getElementById('outputType');
-  if (outputType) outputType.value = 'password';
-  if (outputType) updateFilledState(outputType);
-  updateLengthControlForOutputType();
+  if (outputType) {
+    outputType.value = 'password';
+    outputType.dataset.activeTrack = 'password';
+    updateFilledState(outputType);
+  }
+  updateCredentialTrackControls();
+
+  const counter = document.getElementById('counter');
+  if (counter) counter.value = CREDENTIAL_TRACKS.password.defaultCounter;
+  if (counter) updateFilledState(counter);
 
   const length = document.getElementById('length');
-  if (length) length.value = '16';
+  if (length) length.value = CREDENTIAL_TRACKS.password.defaultLength;
   if (length) updateFilledState(length);
 
   const policyToggle = document.getElementById('policyToggle');
