@@ -195,19 +195,23 @@ body {
 
 .counter-assist {
   display: flex;
+  grid-column: 1 / -1;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.45rem;
-  padding: 0.75rem;
+  gap: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: -0.25rem;
+  padding: 0.85rem 1rem;
   border: 1px solid rgba(47, 110, 78, 0.22);
-  border-radius: 16px;
+  border-radius: 18px;
   background: linear-gradient(135deg, rgba(47, 110, 78, 0.12), rgba(47, 110, 78, 0.04));
   color: #1f5138;
 }
 
 .counter-assist__copy {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 0.18rem;
   min-width: 0;
@@ -221,8 +225,8 @@ body {
 }
 
 .counter-assist__text {
-  font-size: 0.83rem;
-  line-height: 1.35;
+  font-size: 0.9rem;
+  line-height: 1.45;
   color: #2a6146;
 }
 
@@ -237,7 +241,8 @@ body {
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  padding: 0.55rem 0.75rem;
+  padding: 0.65rem 0.95rem;
+  white-space: nowrap;
   text-transform: uppercase;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
