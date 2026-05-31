@@ -4,6 +4,10 @@ const DEFAULT_LENGTH = 16;
 const MIN_LENGTH = 8;
 const MAX_LENGTH = 50;
 
+const DEFAULT_PIN_LENGTH = 4;
+const MIN_PIN_LENGTH = 3;
+const MAX_PIN_LENGTH = 12;
+
 const DEFAULT_PARAMETERS = Object.freeze({
   iterations: 100000,
   argonMem: 64,
@@ -23,20 +27,27 @@ const CHARSETS = {
 export class PasswordGenerator {
   constructor({
     algorithm = 'PBKDF2-SHA256',
-    length = 16,
+    outputType = 'password',
+    length = outputType === 'pin' ? DEFAULT_PIN_LENGTH : DEFAULT_LENGTH,
     policyOn = true,
     compatMode = false,
     parameters = {}
   } = {}) {
     this.algorithm = algorithm;
+    this.outputType = outputType === 'pin' ? 'pin' : 'password';
+
+    const minLength = this.outputType === 'pin' ? MIN_PIN_LENGTH : MIN_LENGTH;
+    const maxLength = this.outputType === 'pin' ? MAX_PIN_LENGTH : MAX_LENGTH;
+    const defaultLength = this.outputType === 'pin' ? DEFAULT_PIN_LENGTH : DEFAULT_LENGTH;
+
     // Defensive guard: clamp to supported bounds and fall back to a safe default
     // when callers provide invalid lengths.
     const numericLength = Number(length);
     if (Number.isInteger(numericLength)) {
-      this.length = Math.min(MAX_LENGTH, Math.max(MIN_LENGTH, numericLength));
+      this.length = Math.min(maxLength, Math.max(minLength, numericLength));
     } else {
       // Fall back to a safe default when callers provide invalid lengths.
-      this.length = DEFAULT_LENGTH;
+      this.length = defaultLength;
     }
     this.policyOn = policyOn;
     this.compatMode = compatMode;
@@ -155,8 +166,21 @@ export class PasswordGenerator {
         hex = await CryptoHelper.digest(combined, this.algorithm);
     }
 
-    const password = this.mapToPassword(hex);
+    const password = this.outputType === 'pin' ? this.mapToPin(hex) : this.mapToPassword(hex);
     return { password, normalizedSite, normalizedAccount, hex, counter: normalizedCounter };
+  }
+
+  mapToPin(hex) {
+    const bytes = this.hexToBytes(hex);
+    if (!bytes.length) return '';
+
+    const digits = CHARSETS.digits;
+    let pin = '';
+    for (let i = 0; i < this.length; i++) {
+      pin += digits[bytes[i % bytes.length] % digits.length];
+    }
+
+    return pin;
   }
 
   mapToPassword(hex) {
