@@ -58,7 +58,14 @@
           <label class="field-label" for="counter" id="counterLabel">Version Counter
             <span class="info-tip" id="counterHint" data-tip="Starts with 0. Use it to rotate credential versions for the same site without changing your master secret.">?</span>
           </label>
-          <input type="number" id="counter" class="field-input" value="0" min="0" step="1" inputmode="numeric">
+          <input type="number" id="counter" class="field-input" value="0" min="0" step="1" inputmode="numeric" aria-describedby="counterAssist">
+          <div id="counterAssist" class="counter-assist" role="status" aria-live="polite" hidden>
+            <div class="counter-assist__copy">
+              <span class="counter-assist__eyebrow">Known site</span>
+              <span id="counterAssistText" class="counter-assist__text"></span>
+            </div>
+            <button id="rotateCounterBtn" class="counter-assist__action" type="button"></button>
+          </div>
         </div>
         <div class="field-group">
           <label class="field-label" for="length" id="lengthLabel">Character Length</label>
