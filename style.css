@@ -362,22 +362,6 @@ small {
   font-size: 0.7rem;
 }
 
-.domain-status__action {
-  border: none;
-  background: none;
-  color: #4a4a4a;
-  font-size: 0.76rem;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.domain-status__action:hover,
-.domain-status__action:focus-visible {
-  color: #222;
-}
-
 .domain-status--checking .domain-status__icon {
   border: 2px solid rgba(0, 0, 0, 0.15);
   border-top-color: rgba(0, 0, 0, 0.5);

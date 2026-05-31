@@ -710,9 +710,8 @@ function initDomainVerification() {
   const statusEl = document.getElementById('domainStatus');
   const statusIcon = statusEl?.querySelector('.domain-status__icon');
   const statusText = statusEl?.querySelector('.domain-status__text');
-  const actionButton = document.getElementById('domainStatusAction');
   const verifyToggle = document.getElementById('verifyDomainsToggle');
-  if (!siteInput || !statusEl || !statusIcon || !statusText || !actionButton || !verifyToggle) return;
+  if (!siteInput || !statusEl || !statusIcon || !statusText || !verifyToggle) return;
 
   const setStatus = status => {
     domainState.status = status;
@@ -723,7 +722,6 @@ function initDomainVerification() {
       'domain-status--verified',
       'domain-status--unverified'
     );
-    actionButton.hidden = true;
     statusIcon.classList.remove('domain-status__icon--tick');
 
     if (status === DOMAIN_STATUS.LABEL) {
@@ -743,8 +741,7 @@ function initDomainVerification() {
     } else if (status === DOMAIN_STATUS.UNVERIFIED) {
       statusEl.classList.add('domain-status--unverified');
       statusIcon.textContent = '?';
-      statusText.textContent = 'Couldn’t verify this domain — saved anyway.';
-      actionButton.hidden = false;
+      statusText.textContent = 'Couldn’t verify this domain. Saved';
     }
   };
 
@@ -852,12 +849,6 @@ function initDomainVerification() {
     } else {
       hideStatus();
     }
-  });
-
-  actionButton.addEventListener('click', () => {
-    domainState.forceLabel = true;
-    handleInputUpdate();
-    void showStatusForCurrentValue();
   });
 
   handleInputUpdate();
