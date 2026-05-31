@@ -83,12 +83,9 @@ async function ensureRecipeIdentifiers(version = {}) {
   const normalizedOutputType = normalizeOutputType(withShort.outputType);
   const normalizedBase = {
     ...withShort,
-    ...(normalizedOutputType === 'pin' ? { outputType: normalizedOutputType } : {}),
+    outputType: normalizedOutputType,
     parameters: normalizedParameters
   };
-  if (normalizedOutputType !== 'pin') {
-    delete normalizedBase.outputType;
-  }
 
   const baseEntry = normalizedBase;
   const sanitizedEntry = normalizeAccountFields(baseEntry);
@@ -363,7 +360,7 @@ export async function exportRegistrySnapshot() {
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
         algorithm: version.algorithm,
-        ...(normalizeOutputType(version.outputType) === 'pin' ? { outputType: 'pin' } : {}),
+        outputType: normalizeOutputType(version.outputType),
         length: version.length,
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
@@ -412,7 +409,7 @@ export async function importRegistrySnapshot(snapshot = {}) {
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
         algorithm: version.algorithm,
-        ...(normalizeOutputType(version.outputType) === 'pin' ? { outputType: 'pin' } : {}),
+        outputType: normalizeOutputType(version.outputType),
         length: version.length,
         counter: version.counter,
         policyOn: Boolean(version.policyOn),

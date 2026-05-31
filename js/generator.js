@@ -281,11 +281,9 @@ export class PasswordGenerator {
     if (normalizedAccount) {
       signatureParts.push(normalizedAccount);
     }
-    if (normalizedOutputType === 'pin') {
-      signatureParts.push(normalizedOutputType);
-    }
     signatureParts.push(
       normalizedCounter,
+      normalizedOutputType,
       length,
       policyOn,
       compatMode,
