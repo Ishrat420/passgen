@@ -37,8 +37,8 @@ const CREDENTIAL_TRACKS = Object.freeze({
     legacyLengthKey: 'length',
     defaultCounter: '0',
     defaultLength: 16,
-    counterLabel: 'Password Counter',
-    counterHint: 'Starts with 0. Use it to rotate passwords for the same site without changing your master secret.'
+    counterLabel: 'Version Counter',
+    counterHint: 'Starts with 0. Use it to rotate credential versions for the same site without changing your master secret.'
   }),
   pin: Object.freeze({
     outputType: 'pin',
@@ -47,7 +47,7 @@ const CREDENTIAL_TRACKS = Object.freeze({
     defaultCounter: '0',
     defaultLength: 4,
     counterLabel: 'PIN Counter',
-    counterHint: 'Starts with 0. Use it to rotate PINs for the same site without changing your master secret or password counter.'
+    counterHint: 'Starts with 0. Use it to rotate PIN versions for the same site without changing your master secret or version counter.'
   })
 });
 
@@ -80,7 +80,7 @@ function isSimpleAlgorithm(algorithm) {
 
 function parseNumericCounterValue(counter) {
   const raw = String(counter ?? '').trim();
-  if (!raw || !/^-?\d+$/.test(raw)) return null;
+  if (!raw || !/^\d+$/.test(raw)) return null;
 
   if (typeof BigInt === 'function') {
     try {
@@ -224,6 +224,30 @@ function readStoredTrackValue(track, property) {
 
 function sanitizeCounterPreference(value, fallback = '0') {
   return PasswordGenerator.normalizeCounter(value ?? fallback);
+}
+
+function sanitizeCounterInputText(value) {
+  return String(value ?? '').replace(/\D+/g, '');
+}
+
+function normalizeCounterInputValue(counterInput, { forceDefault = false } = {}) {
+  if (!counterInput) return '0';
+
+  const sanitized = sanitizeCounterInputText(counterInput.value);
+  if (sanitized !== counterInput.value) {
+    counterInput.value = sanitized;
+  }
+
+  if (forceDefault && counterInput.value === '') {
+    counterInput.value = '0';
+  }
+
+  if (counterInput.value !== '') {
+    counterInput.value = PasswordGenerator.normalizeCounter(counterInput.value);
+  }
+
+  updateFilledState(counterInput);
+  return counterInput.value || '0';
 }
 
 function sanitizeLengthPreference(value, outputType) {
@@ -513,10 +537,7 @@ async function handleGenerate() {
   const secretInput = document.getElementById('secret');
   const secret = secretInput.value.trim();
   const counterInput = document.getElementById('counter');
-  const counterRaw = counterInput.value.trim() || '0';
-  const normalizedCounter = PasswordGenerator.normalizeCounter(counterRaw);
-  counterInput.value = normalizedCounter;
-  updateFilledState(counterInput);
+  const normalizedCounter = normalizeCounterInputValue(counterInput, { forceDefault: true });
   const outputType = document.getElementById('outputType').value;
   persistTrackCounter(outputType);
   const algorithm = document.getElementById('algorithm').value;
@@ -1896,10 +1917,35 @@ function initPreferencePersistence() {
   const counterInput = document.getElementById('counter');
   const lengthInput = document.getElementById('length');
 
+  counterInput?.addEventListener('beforeinput', event => {
+    if (event.data && /\D/.test(event.data)) {
+      event.preventDefault();
+    }
+  });
+
+  counterInput?.addEventListener('paste', event => {
+    const pastedText = event.clipboardData?.getData('text') ?? '';
+    const sanitized = sanitizeCounterInputText(pastedText);
+    if (pastedText !== sanitized) {
+      event.preventDefault();
+      if (sanitized) {
+        counterInput.value = `${counterInput.value}${sanitized}`;
+        normalizeCounterInputValue(counterInput);
+        persistTrackCounter();
+      }
+    }
+  });
+
+  counterInput?.addEventListener('input', () => {
+    normalizeCounterInputValue(counterInput);
+    persistTrackCounter();
+  });
+  counterInput?.addEventListener('change', () => {
+    normalizeCounterInputValue(counterInput, { forceDefault: true });
+    persistTrackCounter();
+  });
+
   ['input', 'change'].forEach(eventName => {
-    counterInput?.addEventListener(eventName, () => {
-      persistTrackCounter();
-    });
     lengthInput?.addEventListener(eventName, () => {
       persistTrackLength();
     });

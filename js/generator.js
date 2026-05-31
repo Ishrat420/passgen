@@ -91,22 +91,19 @@ export class PasswordGenerator {
   static normalizeCounter(counter) {
     const raw = String(counter ?? '0').trim();
     if (raw === '') return '0';
+    if (!/^\d+$/.test(raw)) return '0';
 
-    if (/^-?\d+$/.test(raw)) {
-      if (typeof BigInt === 'function') {
-        try {
-          return String(BigInt(raw));
-        } catch {
-          // Fall back to Number parsing below.
-        }
+    if (typeof BigInt === 'function') {
+      try {
+        return String(BigInt(raw));
+      } catch {
+        // Fall back to Number parsing below.
       }
-
-      const parsed = parseInt(raw, 10);
-      if (Number.isNaN(parsed)) return raw.replace(/^0+(?=\d)/, '');
-      return String(parsed);
     }
 
-    return raw;
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed) || parsed < 0) return '0';
+    return String(parsed);
   }
 
   async generate({ site, account = '', secret, counter = '0', normalizeSite = true }) {
