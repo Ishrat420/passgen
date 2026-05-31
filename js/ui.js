@@ -356,6 +356,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
   initPreferencePersistence();
+  toggleController?.enforceState({ notify: false });
   initEventHandlers();
   setupReactiveFields();
   updateLengthControlForOutputType();
@@ -724,8 +725,8 @@ function initToggleExclusivity({ onStateChange } = {}) {
     if (isPinOutputSelected()) {
       policyToggle.disabled = true;
       compatToggle.disabled = true;
-      setHintVisibility(policyHint, true, 'Character Policy does not apply to PIN output.');
-      setHintVisibility(compatHint, true, 'Compatibility Mode does not apply to PIN output.');
+      setHintVisibility(policyHint, true, 'Character Policy is locked for PIN output.');
+      setHintVisibility(compatHint, true, 'Compatibility Mode is locked for PIN output.');
       updateUI();
       return;
     }
@@ -1640,23 +1641,33 @@ async function explainPassword() {
     parameters: parameterSettings
   });
 
-  const box = document.getElementById('explainBox');
-  box.style.display = 'block';
-  box.textContent = [
+  const explanationLines = [
     `Algorithm: ${algorithm}`,
     `Output type: ${normalizeOutputType(outputType)}`,
     `Normalized site: ${normalizedSite}`,
     `Counter: ${normalizedCounter}`,
-    `Length: ${length}`,
-    `Deterministic policy: ${policyOn}`,
-    `Compatibility mode: ${compatMode}`,
+    `Length: ${length}`
+  ];
+
+  if (normalizeOutputType(outputType) !== 'pin') {
+    explanationLines.push(
+      `Deterministic policy: ${policyOn}`,
+      `Compatibility mode: ${compatMode}`
+    );
+  }
+
+  explanationLines.push(
     isSimpleAlgorithm(algorithm)
       ? 'Algorithm tuning: not applicable'
       : `Algorithm tuning: iterations=${parameterSettings.iterations}, argonMem=${parameterSettings.argonMem}, scryptN=${parameterSettings.scryptN}, balloonSpace=${parameterSettings.balloonSpace}, balloonTime=${parameterSettings.balloonTime}, balloonDelta=${parameterSettings.balloonDelta}`,
     `Recipe ID: ${recipeId}`,
     '',
     'The Recipe ID is a unique fingerprint of all your settings, except your master phrase.'
-  ].join('\n');
+  );
+
+  const box = document.getElementById('explainBox');
+  box.style.display = 'block';
+  box.textContent = explanationLines.join('\n');
 }
 
 async function updateStorageInfo() {
@@ -1735,6 +1746,7 @@ function initPreferencePersistence() {
       el.value = stored;
       updateFilledState(el);
       updateLengthControlForOutputType();
+      toggleController?.enforceState({ notify: false });
       return stored;
     },
     readValue: el => el.value
