@@ -495,9 +495,7 @@ function renderCounterAssist(state) {
   const counterInput = document.getElementById('counter');
   if (!assist || !assistText || !rotateBtn || !counterInput) return;
 
-  const trackName = normalizeOutputType(document.getElementById('outputType')?.value) === 'pin' ? 'PIN' : 'password';
-  const versionLabel = state.latestVersion.version ? `v${state.latestVersion.version}` : 'latest';
-  assistText.textContent = `${state.site} is saved. Loaded ${trackName} ${versionLabel} counter ${state.currentCounter}.`;
+  assistText.textContent = `Credentials for ${state.site} exist. Latest counter is ${state.currentCounter}.`;
   rotateBtn.textContent = `Rotate to ${state.nextCounter}`;
   rotateBtn.dataset.nextCounter = state.nextCounter;
   counterInput.dataset.knownSite = state.site;
@@ -756,6 +754,7 @@ async function handleGenerate() {
     balloonDelta
   });
   const existingRegistry = await getRegistryEntry(normalizedSite);
+  const hadKnownTrackBeforeGeneration = Boolean(findLatestTrackVersion(existingRegistry, outputType));
   const counterSequenceError = getCounterSequenceError({
     registry: existingRegistry,
     normalizedCounter,
@@ -838,7 +837,11 @@ async function handleGenerate() {
     await rememberAccountLabel(accountLabel);
 
     await refreshHistoryList(document.getElementById('searchHistory').value.trim());
-    await updateKnownSiteCounterAssist({ forceAutofill: false });
+    if (hadKnownTrackBeforeGeneration) {
+      await updateKnownSiteCounterAssist({ forceAutofill: false });
+    } else {
+      hideCounterAssist();
+    }
     await notifyFileSyncRegistryChange();
     scheduleAutoHide();
   } catch (error) {
