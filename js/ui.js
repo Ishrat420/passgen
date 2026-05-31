@@ -21,6 +21,8 @@ let lastGeneratedPassword = '';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 50;
+const MIN_PIN_LENGTH = 3;
+const MAX_PIN_LENGTH = 12;
 const SECRET_REQUIREMENT_MESSAGE =
   'Must contain at least 8 characters, including one uppercase, one lowercase and one number.';
 
@@ -152,8 +154,32 @@ function hasMatchingParameters(version, parameters) {
   );
 }
 
+function normalizeOutputType(outputType) {
+  return outputType === 'pin' ? 'pin' : 'password';
+}
+
+function getLengthBounds(outputType) {
+  return normalizeOutputType(outputType) === 'pin'
+    ? { min: MIN_PIN_LENGTH, max: MAX_PIN_LENGTH, label: 'PIN Digits', description: 'PIN digits' }
+    : { min: MIN_PASSWORD_LENGTH, max: MAX_PASSWORD_LENGTH, label: 'Character Length', description: 'Password length' };
+}
+
+function updateLengthControlForOutputType() {
+  const outputType = document.getElementById('outputType')?.value;
+  const lengthInput = document.getElementById('length');
+  const lengthLabel = document.getElementById('lengthLabel');
+  const bounds = getLengthBounds(outputType);
+
+  if (lengthLabel) lengthLabel.textContent = bounds.label;
+  if (lengthInput) {
+    lengthInput.min = String(bounds.min);
+    lengthInput.max = String(bounds.max);
+  }
+}
+
 function findLatestSeriesVersion(registry, {
   algorithm,
+  outputType,
   length,
   policyOn,
   compatMode,
@@ -164,6 +190,7 @@ function findLatestSeriesVersion(registry, {
   return registry.versions.reduce((latest, version) => {
     if (!version) return latest;
     if (version.algorithm !== algorithm) return latest;
+    if (normalizeOutputType(version.outputType) !== normalizeOutputType(outputType)) return latest;
     if (version.length !== length) return latest;
     if (Boolean(version.policyOn) !== Boolean(policyOn)) return latest;
     if (Boolean(version.compatMode) !== Boolean(compatMode)) return latest;
@@ -180,6 +207,7 @@ function getCounterSequenceError({
   registry,
   normalizedCounter,
   algorithm,
+  outputType,
   length,
   policyOn,
   compatMode,
@@ -190,6 +218,7 @@ function getCounterSequenceError({
 
   const latestSeries = findLatestSeriesVersion(registry, {
     algorithm,
+    outputType,
     length,
     policyOn,
     compatMode,
@@ -293,6 +322,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initPreferencePersistence();
   initEventHandlers();
   setupReactiveFields();
+  updateLengthControlForOutputType();
   initDomainVerification();
   initAccountLabelSuggestions();
   refreshHistoryList();
@@ -332,6 +362,7 @@ async function handleGenerate() {
   counterInput.value = normalizedCounter;
   updateFilledState(counterInput);
   const algorithm = document.getElementById('algorithm').value;
+  const outputType = document.getElementById('outputType').value;
   const lengthInput = document.getElementById('length').value;
   const length = Number(lengthInput);
   const policyOn = document.getElementById('policyToggle').checked;
@@ -376,9 +407,11 @@ async function handleGenerate() {
 
   clearSecretFieldError();
 
-  if (!Number.isInteger(length) || length < MIN_PASSWORD_LENGTH || length > MAX_PASSWORD_LENGTH) {
+  const lengthBounds = getLengthBounds(outputType);
+
+  if (!Number.isInteger(length) || length < lengthBounds.min || length > lengthBounds.max) {
     showValidationError(
-      `Password length must be an integer between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH}.`
+      `${lengthBounds.description} must be an integer between ${lengthBounds.min} and ${lengthBounds.max}.`
     );
     return;
   }
@@ -397,6 +430,7 @@ async function handleGenerate() {
     registry: existingRegistry,
     normalizedCounter,
     algorithm,
+    outputType,
     length,
     policyOn,
     compatMode,
@@ -412,6 +446,7 @@ async function handleGenerate() {
   try {
     const generator = new PasswordGenerator({
       algorithm,
+      outputType,
       length,
       policyOn,
       compatMode,
@@ -439,6 +474,7 @@ async function handleGenerate() {
 
     const { digest: recipeDigest, short: recipeShort } = await PasswordGenerator.computeRecipeId({
       algorithm,
+      outputType: generator.outputType,
       site: normalizedSite,
       counter: normalizedCounter,
       length: effectiveLength,
@@ -457,6 +493,7 @@ async function handleGenerate() {
       domainValue: siteValues.domainValue,
       domainVerified: siteValues.domainVerified || undefined,
       algorithm,
+      outputType: generator.outputType,
       length: effectiveLength,
       counter: normalizedCounter,
       policyOn,
@@ -691,7 +728,7 @@ function updateToggleVisual(toggle, label, lock) {
 
 function setupReactiveFields() {
   const reactiveFields = [
-    'website', 'accountLabel', 'secret', 'algorithm', 'counter', 'length',
+    'website', 'accountLabel', 'secret', 'algorithm', 'outputType', 'counter', 'length',
     'policyToggle', 'compatToggle', 'verifyDomainsToggle', 'iterations', 'argonMem', 'scryptN',
     'balloonSpace', 'balloonTime', 'balloonDelta'
   ];
@@ -702,6 +739,9 @@ function setupReactiveFields() {
     registerFilledStateTracking(element);
     element.addEventListener('input', hideResultBox);
     element.addEventListener('change', hideResultBox);
+    if (id === 'outputType') {
+      element.addEventListener('change', updateLengthControlForOutputType);
+    }
   });
 }
 
@@ -1180,7 +1220,9 @@ async function refreshHistoryList(filter = '') {
       `ID: ${shortId}`,
       ...(accountSummary ? [`Account: ${accountSummary}`] : []),
       `Counter: ${recipe.counter}`,
-      `${recipe.length} chars`,
+      normalizeOutputType(recipe.outputType) === 'pin'
+        ? `${recipe.length} PIN digits`
+        : `${recipe.length} chars`,
       new Date(recipe.date).toLocaleString()
     ];
 
@@ -1339,10 +1381,15 @@ function applyRecipeToForm(recipe) {
   const normalizedCounter = PasswordGenerator.normalizeCounter(recipe.counter ?? '0');
   setTextFieldValue('counter', normalizedCounter, 'change');
 
+  const normalizedOutputType = normalizeOutputType(recipe.outputType);
+  setSelectFieldValue('outputType', normalizedOutputType);
+  updateLengthControlForOutputType();
+
   const parsedLength = Number.parseInt(recipe.length, 10);
+  const lengthBounds = getLengthBounds(normalizedOutputType);
   const sanitizedLength = Number.isFinite(parsedLength)
-    ? clamp(parsedLength, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH)
-    : 16;
+    ? clamp(parsedLength, lengthBounds.min, lengthBounds.max)
+    : lengthBounds.min;
   setTextFieldValue('length', sanitizedLength, 'change');
 
   setSelectFieldValue('algorithm', recipe.algorithm);
@@ -1505,6 +1552,7 @@ async function explainPassword() {
   const secret = document.getElementById('secret').value.trim();
   const counter = document.getElementById('counter').value.trim() || '0';
   const algorithm = document.getElementById('algorithm').value;
+  const outputType = document.getElementById('outputType').value;
   const length = document.getElementById('length').value;
   const policyOn = document.getElementById('policyToggle').checked;
   const compatMode = document.getElementById('compatToggle').checked;
@@ -1528,6 +1576,7 @@ async function explainPassword() {
   const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
   const { short: recipeId } = await PasswordGenerator.computeRecipeId({
     algorithm,
+    outputType,
     site: normalizedSite,
     counter: normalizedCounter,
     length,
@@ -1540,6 +1589,7 @@ async function explainPassword() {
   box.style.display = 'block';
   box.textContent = [
     `Algorithm: ${algorithm}`,
+    `Output type: ${normalizeOutputType(outputType)}`,
     `Normalized site: ${normalizedSite}`,
     `Counter: ${normalizedCounter}`,
     `Length: ${length}`,
@@ -1618,6 +1668,18 @@ function initPreferencePersistence() {
   });
 
   registerField({
+    key: 'outputType',
+    element: document.getElementById('outputType'),
+    applyStored: (el, stored) => {
+      el.value = normalizeOutputType(stored);
+      updateFilledState(el);
+      updateLengthControlForOutputType();
+      return el.value;
+    },
+    readValue: el => normalizeOutputType(el.value)
+  });
+
+  registerField({
     key: 'verifyDomains',
     element: document.getElementById('verifyDomainsToggle'),
     applyStored: (el, stored) => {
@@ -1632,8 +1694,14 @@ function initPreferencePersistence() {
   registerField({
     key: 'length',
     element: document.getElementById('length'),
-    applyStored: (el, stored) => applyNumericPreference(el, stored, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH),
-    readValue: el => readNumericPreference(el, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH)
+    applyStored: (el, stored) => {
+      const bounds = getLengthBounds(document.getElementById('outputType')?.value);
+      return applyNumericPreference(el, stored, bounds.min, bounds.max);
+    },
+    readValue: el => {
+      const bounds = getLengthBounds(document.getElementById('outputType')?.value);
+      return readNumericPreference(el, bounds.min, bounds.max);
+    }
   });
 
   registerField({
@@ -1752,6 +1820,11 @@ function resetPreferenceDefaults() {
   const algorithm = document.getElementById('algorithm');
   if (algorithm) algorithm.value = 'PBKDF2-SHA256';
   if (algorithm) updateFilledState(algorithm);
+
+  const outputType = document.getElementById('outputType');
+  if (outputType) outputType.value = 'password';
+  if (outputType) updateFilledState(outputType);
+  updateLengthControlForOutputType();
 
   const length = document.getElementById('length');
   if (length) length.value = '16';
