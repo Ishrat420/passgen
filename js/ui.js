@@ -483,7 +483,7 @@ function handleDiversityWarning(generator, password) {
   warning.style.display = 'none';
   warning.innerText = '';
 
-  if (generator.policyOn && !generator.isDiverse(password)) {
+  if (generator.outputType !== 'pin' && generator.policyOn && !generator.isDiverse(password)) {
     warning.innerText = '⚠️ Password lacks full character diversity.';
     warning.style.display = 'block';
     setTimeout(() => (warning.style.display = 'none'), 6000);
