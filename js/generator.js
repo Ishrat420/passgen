@@ -177,7 +177,7 @@ export class PasswordGenerator {
     const digits = CHARSETS.digits;
     let pin = '';
     for (let i = 0; i < this.length; i++) {
-      pin += digits[bytes[i % bytes.length] % digits.length];
+      pin += digits[bytes[i % bytes.length] % 10];
     }
 
     return pin;
