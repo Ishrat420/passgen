@@ -17,6 +17,8 @@ import { loadPreferences, savePreferences, clearPreferences } from './preference
 
 let hideTimer = null;
 let registryFadeTimer = null;
+let counterAssistTimer = null;
+let counterAssistRequestId = 0;
 let lastGeneratedPassword = '';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -92,6 +94,12 @@ function parseNumericCounterValue(counter) {
 
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function incrementCounterText(counter) {
+  const parsed = parseNumericCounterValue(counter);
+  if (parsed === null) return '1';
+  return typeof parsed === 'bigint' ? String(parsed + 1n) : String(parsed + 1);
 }
 
 function looksLikeDomainCandidate(value) {
@@ -418,6 +426,130 @@ function getCounterSequenceError({
   return '';
 }
 
+function findLatestTrackVersion(registry, outputType) {
+  if (!registry || !Array.isArray(registry.versions)) return null;
+  const activeOutputType = normalizeOutputType(outputType);
+
+  return registry.versions.reduce((latest, version) => {
+    if (!version || normalizeOutputType(version.outputType) !== activeOutputType) return latest;
+    if (!latest) return version;
+
+    const latestVersionNumber = typeof latest.version === 'number' ? latest.version : 0;
+    const versionNumber = typeof version.version === 'number' ? version.version : 0;
+    if (versionNumber !== latestVersionNumber) {
+      return versionNumber > latestVersionNumber ? version : latest;
+    }
+
+    const latestDate = Date.parse(latest.date || '') || 0;
+    const versionDate = Date.parse(version.date || '') || 0;
+    return versionDate >= latestDate ? version : latest;
+  }, null);
+}
+
+function getKnownSiteCandidates(rawValue) {
+  const verifyToggle = document.getElementById('verifyDomainsToggle');
+  const parsed = resolveSiteInput(rawValue, {
+    verifyEnabled: verifyToggle ? verifyToggle.checked : true,
+    forceLabel: false
+  });
+  const candidates = [parsed.domainValue, parsed.labelValue]
+    .map(value => String(value ?? '').trim())
+    .filter(Boolean);
+
+  return [...new Set(candidates)];
+}
+
+async function findKnownSiteCounterState(rawValue, outputType) {
+  const candidates = getKnownSiteCandidates(rawValue);
+  for (const candidate of candidates) {
+    const registry = await getRegistryEntry(candidate);
+    const latestVersion = findLatestTrackVersion(registry, outputType);
+    if (latestVersion) {
+      const currentCounter = PasswordGenerator.normalizeCounter(latestVersion.counter ?? '0');
+      return {
+        site: candidate,
+        latestVersion,
+        currentCounter,
+        nextCounter: incrementCounterText(currentCounter)
+      };
+    }
+  }
+
+  return null;
+}
+
+function hideCounterAssist() {
+  const assist = document.getElementById('counterAssist');
+  const counterInput = document.getElementById('counter');
+  if (assist) assist.hidden = true;
+  if (counterInput) {
+    delete counterInput.dataset.knownSite;
+    delete counterInput.dataset.autoCounter;
+  }
+}
+
+function renderCounterAssist(state) {
+  const assist = document.getElementById('counterAssist');
+  const assistText = document.getElementById('counterAssistText');
+  const rotateBtn = document.getElementById('rotateCounterBtn');
+  const counterInput = document.getElementById('counter');
+  if (!assist || !assistText || !rotateBtn || !counterInput) return;
+
+  const trackName = normalizeOutputType(document.getElementById('outputType')?.value) === 'pin' ? 'PIN' : 'password';
+  const versionLabel = state.latestVersion.version ? `v${state.latestVersion.version}` : 'latest';
+  assistText.textContent = `${state.site} is saved. Loaded ${trackName} ${versionLabel} counter ${state.currentCounter}.`;
+  rotateBtn.textContent = `Rotate to ${state.nextCounter}`;
+  rotateBtn.dataset.nextCounter = state.nextCounter;
+  counterInput.dataset.knownSite = state.site;
+  counterInput.dataset.autoCounter = state.currentCounter;
+  assist.hidden = false;
+}
+
+function setCounterToKnownSiteCurrent(state, { force = false } = {}) {
+  const counterInput = document.getElementById('counter');
+  if (!counterInput) return;
+
+  const canAutofill =
+    force ||
+    document.activeElement !== counterInput ||
+    counterInput.value === '' ||
+    counterInput.value === counterInput.dataset.autoCounter ||
+    counterInput.dataset.knownSite !== state.site;
+
+  if (!canAutofill) return;
+
+  counterInput.value = state.currentCounter;
+  counterInput.dataset.autoCounter = state.currentCounter;
+  updateFilledState(counterInput);
+  persistTrackCounter(document.getElementById('outputType')?.value);
+}
+
+async function updateKnownSiteCounterAssist({ forceAutofill = false } = {}) {
+  const siteInput = document.getElementById('website');
+  const outputType = document.getElementById('outputType')?.value;
+  if (!siteInput || !outputType) return;
+
+  const requestId = ++counterAssistRequestId;
+  const rawValue = siteInput.value ?? '';
+  const state = await findKnownSiteCounterState(rawValue, outputType);
+  if (requestId !== counterAssistRequestId) return;
+
+  if (!state) {
+    hideCounterAssist();
+    return;
+  }
+
+  setCounterToKnownSiteCurrent(state, { force: forceAutofill });
+  renderCounterAssist(state);
+}
+
+function scheduleKnownSiteCounterAssist(options = {}) {
+  clearTimeout(counterAssistTimer);
+  counterAssistTimer = setTimeout(() => {
+    updateKnownSiteCounterAssist(options).catch(() => hideCounterAssist());
+  }, options.forceAutofill ? 0 : 180);
+}
+
 function registerFilledStateTracking(element) {
   if (!element || !(element instanceof HTMLElement)) return;
   if (element.matches('input[type="checkbox"], input[type="radio"]')) return;
@@ -526,6 +658,25 @@ function initEventHandlers() {
 
   const search = document.getElementById('searchHistory');
   search.addEventListener('input', event => refreshHistoryList(event.target.value));
+
+  const siteInput = document.getElementById('website');
+  siteInput?.addEventListener('input', () => scheduleKnownSiteCounterAssist());
+  siteInput?.addEventListener('change', () => scheduleKnownSiteCounterAssist({ forceAutofill: true }));
+
+  const outputTypeSelect = document.getElementById('outputType');
+  outputTypeSelect?.addEventListener('change', () => scheduleKnownSiteCounterAssist({ forceAutofill: true }));
+
+  const rotateBtn = document.getElementById('rotateCounterBtn');
+  rotateBtn?.addEventListener('click', () => {
+    const nextCounter = rotateBtn.dataset.nextCounter;
+    const counterInput = document.getElementById('counter');
+    if (!nextCounter || !counterInput) return;
+    counterInput.value = nextCounter;
+    counterInput.dataset.autoCounter = nextCounter;
+    updateFilledState(counterInput);
+    persistTrackCounter(document.getElementById('outputType')?.value);
+    hideResultBox();
+  });
 }
 
 async function handleGenerate() {
@@ -687,6 +838,7 @@ async function handleGenerate() {
     await rememberAccountLabel(accountLabel);
 
     await refreshHistoryList(document.getElementById('searchHistory').value.trim());
+    await updateKnownSiteCounterAssist({ forceAutofill: false });
     await notifyFileSyncRegistryChange();
     scheduleAutoHide();
   } catch (error) {
