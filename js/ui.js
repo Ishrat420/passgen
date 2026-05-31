@@ -1676,7 +1676,7 @@ async function updateStorageInfo() {
     const usedMB = (usage / 1024 / 1024).toFixed(2);
     const quotaMB = (quota / 1024 / 1024).toFixed(0);
     document.getElementById('storageInfo').textContent =
-      `Storage used: ${usedMB} MB / ${quotaMB} MB — only recipe metadata is stored, never your master passphrase.`;
+      `Storage used: ${usedMB} MB / ${quotaMB} MB — PasswordGen saves recipe metadata locally in your browser. Clearing site data may also delete these recipes. Your master phrase and actual passwords are never stored.`;
   }
 }
 
