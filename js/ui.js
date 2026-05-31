@@ -28,6 +28,7 @@ const SECRET_REQUIREMENT_MESSAGE =
 
 let userPreferences = {};
 let toggleController = null;
+let lengthManuallyChanged = false;
 
 const SIMPLE_ALGORITHMS = new Set(['SHA-256', 'SHA-512', 'BLAKE2b-512', 'BLAKE2s-256', 'HMAC-SHA256']);
 
@@ -177,6 +178,25 @@ function updateLengthControlForOutputType() {
   }
 }
 
+function isValidOutputType(outputType) {
+  return outputType === 'password' || outputType === 'pin';
+}
+
+function setLengthPreferenceValue(value, { persist = true } = {}) {
+  const lengthInput = document.getElementById('length');
+  if (!lengthInput) return;
+
+  lengthInput.value = String(value);
+  updateFilledState(lengthInput);
+  userPreferences.length = value;
+  if (persist) persistPreferences();
+}
+
+function applyPinDefaultLength({ persist = true } = {}) {
+  if (!isPinOutputSelected() || lengthManuallyChanged) return;
+  setLengthPreferenceValue(4, { persist });
+}
+
 function isPinOutputSelected() {
   return normalizeOutputType(document.getElementById('outputType')?.value) === 'pin';
 }
@@ -321,6 +341,7 @@ function updateFilledState(element) {
 
 window.addEventListener('DOMContentLoaded', () => {
   userPreferences = loadPreferences();
+  lengthManuallyChanged = Object.prototype.hasOwnProperty.call(userPreferences, 'length');
   applyStoredTogglePreferences();
   toggleController = initToggleExclusivity({
     onStateChange: state => {
@@ -1532,6 +1553,7 @@ async function handleResetAppData() {
     await clearAllData();
     clearPreferences();
     userPreferences = {};
+    lengthManuallyChanged = false;
     resetPreferenceDefaults();
     toggleController?.enforceState({ notify: false });
     await refreshHistoryList();
@@ -1704,12 +1726,18 @@ function initPreferencePersistence() {
     key: 'outputType',
     element: document.getElementById('outputType'),
     applyStored: (el, stored) => {
-      el.value = normalizeOutputType(stored);
+      if (!isValidOutputType(stored)) {
+        updateFilledState(el);
+        updateLengthControlForOutputType();
+        return undefined;
+      }
+
+      el.value = stored;
       updateFilledState(el);
       updateLengthControlForOutputType();
-      return el.value;
+      return stored;
     },
-    readValue: el => normalizeOutputType(el.value)
+    readValue: el => el.value
   });
 
   registerField({
@@ -1734,8 +1762,20 @@ function initPreferencePersistence() {
     readValue: el => {
       const bounds = getLengthBounds(document.getElementById('outputType')?.value);
       return readNumericPreference(el, bounds.min, bounds.max);
-    }
+    },
+    events: ['input', 'change']
   });
+
+  document.getElementById('length')?.addEventListener('input', () => {
+    lengthManuallyChanged = true;
+  });
+  document.getElementById('length')?.addEventListener('change', () => {
+    lengthManuallyChanged = true;
+  });
+  document.getElementById('outputType')?.addEventListener('change', () => {
+    applyPinDefaultLength();
+  });
+  applyPinDefaultLength();
 
   registerField({
     key: 'iterations',
