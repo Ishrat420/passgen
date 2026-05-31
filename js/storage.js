@@ -25,6 +25,51 @@ function normalizeOutputType(outputType) {
   return outputType === 'pin' ? 'pin' : 'password';
 }
 
+function getVersionNumber(version = {}) {
+  const parsed = Number.parseInt(version.version, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function getTrackVersions(versions = [], outputType) {
+  const normalizedOutputType = normalizeOutputType(outputType);
+  return versions.filter(version => normalizeOutputType(version?.outputType) === normalizedOutputType);
+}
+
+function findLatestTrackVersion(versions = [], outputType) {
+  return getTrackVersions(versions, outputType).reduce((latest, version) => {
+    if (!version) return latest;
+    if (!latest) return version;
+
+    const latestVersionNumber = getVersionNumber(latest);
+    const versionNumber = getVersionNumber(version);
+    if (versionNumber !== latestVersionNumber) {
+      return versionNumber > latestVersionNumber ? version : latest;
+    }
+
+    const latestDate = Date.parse(latest.date || '') || 0;
+    const versionDate = Date.parse(version.date || '') || 0;
+    return versionDate >= latestDate ? version : latest;
+  }, null);
+}
+
+function reindexVersionsByOutputType(versions = []) {
+  const counters = new Map();
+  let changed = false;
+
+  const reindexed = versions.map(version => {
+    if (!version) return version;
+    const outputType = normalizeOutputType(version.outputType);
+    const nextVersion = (counters.get(outputType) || 0) + 1;
+    counters.set(outputType, nextVersion);
+
+    if (version.version === nextVersion) return version;
+    changed = true;
+    return { ...version, version: nextVersion };
+  });
+
+  return { versions: reindexed, changed };
+}
+
 function normalizeCounterValue(counter) {
   const raw = String(counter ?? '0').trim();
   if (raw === '') return '0';
@@ -125,8 +170,6 @@ async function normalizeRegistryEntry(entry) {
   let mutated = false;
   const normalizedVersions = [];
   const removals = [];
-  const updates = [];
-
   for (const version of entry.versions) {
     if (!version) continue;
     const normalized = await ensureRecipeIdentifiers(version);
@@ -134,20 +177,20 @@ async function normalizeRegistryEntry(entry) {
     if (normalized !== version) mutated = true;
     normalizedVersions.push(normalized);
 
-    if (normalized && normalized.id) {
-      updates.push(normalized);
-      if (version.id && normalized.id !== version.id) {
-        removals.push(version.id);
-      }
+    if (normalized.id && version.id && normalized.id !== version.id) {
+      removals.push(version.id);
     }
   }
+
+  const { versions: trackIndexedVersions, changed: reindexedByTrack } = reindexVersionsByOutputType(normalizedVersions);
+  if (reindexedByTrack) mutated = true;
 
   if (!mutated) return entry;
 
   await Promise.all(removals.map(id => recipeStore.removeItem(id)));
-  const normalizedEntry = { ...entry, versions: normalizedVersions };
+  const normalizedEntry = { ...entry, versions: trackIndexedVersions };
   await registryStore.setItem(entry.site, normalizedEntry);
-  await Promise.all(updates.map(version => recipeStore.setItem(version.id, version)));
+  await Promise.all(trackIndexedVersions.map(version => recipeStore.setItem(version.id, version)));
   return normalizedEntry;
 }
 
@@ -201,13 +244,13 @@ export async function recordRecipeUsage(recipe, existingRegistry = null) {
     return {
       registryEntry: registry,
       matchedVersion: match,
-      latestVersion: registry.versions[registry.versions.length - 1],
+      latestVersion: findLatestTrackVersion(registry.versions, stored.outputType) || stored,
       wasExistingRegistry: true,
       isNewVersion: false
     };
   }
 
-  const newVersionNumber = registry.versions.length + 1;
+  const newVersionNumber = getTrackVersions(registry.versions, baseEntry.outputType).length + 1;
   const newVersion = { ...baseEntry, version: newVersionNumber };
   const updatedRegistry = {
     site: registry.site,
@@ -322,12 +365,10 @@ export async function deleteRecipeById(recipeId) {
     return { removed: true, remainingVersions: 0, site };
   }
 
+  const { versions: trackIndexedRemaining } = reindexVersionsByOutputType(remaining);
   const normalized = [];
-  for (let index = 0; index < remaining.length; index += 1) {
-    const prepared = await ensureRecipeIdentifiers({
-      ...remaining[index],
-      version: index + 1
-    });
+  for (const version of trackIndexedRemaining) {
+    const prepared = await ensureRecipeIdentifiers(version);
     if (prepared && prepared.id) {
       normalized.push(prepared);
     }
@@ -426,11 +467,15 @@ export async function importRegistrySnapshot(snapshot = {}) {
     const existing = await normalizeRegistryEntry(await registryStore.getItem(site));
 
     if (!existing) {
-      const sorted = [...incomingVersions].sort((a, b) => (a.version || 0) - (b.version || 0));
+      const sorted = [...incomingVersions].sort((a, b) => {
+        const outputCompare = normalizeOutputType(a.outputType).localeCompare(normalizeOutputType(b.outputType));
+        if (outputCompare !== 0) return outputCompare;
+        return getVersionNumber(a) - getVersionNumber(b);
+      });
+      const { versions: trackIndexedVersions } = reindexVersionsByOutputType(sorted);
       const normalized = [];
-      for (let index = 0; index < sorted.length; index += 1) {
-        const withVersion = { ...sorted[index], version: index + 1 };
-        const prepared = await ensureRecipeIdentifiers(withVersion);
+      for (const version of trackIndexedVersions) {
+        const prepared = await ensureRecipeIdentifiers(version);
         if (prepared && prepared.id) {
           normalized.push(prepared);
         }
@@ -451,14 +496,7 @@ export async function importRegistrySnapshot(snapshot = {}) {
       const alreadyExists = merged.some(existingVersion => existingVersion.id === version.id);
       if (alreadyExists) continue;
 
-      const nextVersionNumber = version.version && version.version > 0
-        ? version.version
-        : merged.length + 1;
-
-      const prepared = await ensureRecipeIdentifiers({
-        ...version,
-        version: nextVersionNumber
-      });
+      const prepared = await ensureRecipeIdentifiers(version);
       merged.push(prepared);
       changed = true;
       importedVersions += 1;
@@ -466,13 +504,15 @@ export async function importRegistrySnapshot(snapshot = {}) {
 
     if (!changed) continue;
 
-    merged.sort((a, b) => a.version - b.version);
+    merged.sort((a, b) => {
+      const outputCompare = normalizeOutputType(a.outputType).localeCompare(normalizeOutputType(b.outputType));
+      if (outputCompare !== 0) return outputCompare;
+      return getVersionNumber(a) - getVersionNumber(b);
+    });
+    const { versions: trackIndexedMerged } = reindexVersionsByOutputType(merged);
     const reindexed = [];
-    for (let index = 0; index < merged.length; index += 1) {
-      const prepared = await ensureRecipeIdentifiers({
-        ...merged[index],
-        version: index + 1
-      });
+    for (const version of trackIndexedMerged) {
+      const prepared = await ensureRecipeIdentifiers(version);
       reindexed.push(prepared);
     }
 

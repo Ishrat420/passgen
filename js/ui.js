@@ -495,7 +495,8 @@ function renderCounterAssist(state) {
   const counterInput = document.getElementById('counter');
   if (!assist || !assistText || !rotateBtn || !counterInput) return;
 
-  assistText.textContent = `Credentials for ${state.site} exist. Latest counter is ${state.currentCounter}.`;
+  const credentialLabel = normalizeOutputType(state.latestVersion?.outputType) === 'pin' ? 'PIN' : 'Password';
+  assistText.textContent = `Credential Type: ${credentialLabel} for ${state.site} exist. Latest counter is ${state.currentCounter}.`;
   rotateBtn.textContent = `Rotate to ${state.nextCounter}`;
   rotateBtn.dataset.nextCounter = state.nextCounter;
   counterInput.dataset.knownSite = state.site;
@@ -1463,34 +1464,34 @@ function updateRegistryMessage(site, previousRegistry, registryResult) {
   if (!previousRegistry) return;
 
   const { matchedVersion, latestVersion } = registryResult;
-  const activeTrack = normalizeOutputType(latestVersion?.outputType || matchedVersion?.outputType);
+  const activeTrack = normalizeOutputType(matchedVersion?.outputType || latestVersion?.outputType);
   const trackLabel = activeTrack === 'pin' ? 'PIN' : 'password';
   const trackVersions = previousRegistry.versions.filter(
     version => normalizeOutputType(version.outputType) === activeTrack
   );
-  const latestTrackVersion = trackVersions[trackVersions.length - 1] || latestVersion;
+  const latestTrackVersion = findLatestTrackVersion({ versions: trackVersions }, activeTrack) || latestVersion;
 
   if (matchedVersion) {
     const lastCounter = matchedVersion.counter || '0';
-    messageEl.append(document.createTextNode(`💡 You’ve generated this ${trackLabel} recipe before. Latest saved ${trackLabel} version for `));
+    messageEl.append(document.createTextNode(`💡 You’ve generated this recipe before, type: ${trackLabel}. Latest saved version for `));
 
     const siteStrong = document.createElement('b');
     siteStrong.textContent = site;
     messageEl.appendChild(siteStrong);
 
-    messageEl.append(document.createTextNode(': ('));
+    messageEl.append(document.createTextNode(' : ('));
 
     const versionStrong = document.createElement('b');
     versionStrong.textContent = `v${latestTrackVersion.version}`;
     messageEl.appendChild(versionStrong);
 
-    const formattedDate = new Date(matchedVersion.date).toLocaleDateString();
+    const formattedDate = new Date(latestTrackVersion.date || matchedVersion.date).toLocaleDateString('en-GB');
     messageEl.append(document.createTextNode(`, ${formattedDate}).`));
 
     messageEl.appendChild(document.createElement('br'));
 
     const counterInfo = document.createElement('small');
-    counterInfo.textContent = `Last used ${trackLabel === 'PIN' ? 'PIN' : 'password'} counter: `;
+    counterInfo.textContent = 'Last used Counter: ';
     const counterCode = document.createElement('code');
     counterCode.textContent = lastCounter;
     counterInfo.appendChild(counterCode);
