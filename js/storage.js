@@ -6,6 +6,9 @@ import { PasswordGenerator } from './generator.js';
 
 const APP_NAME = 'PasswordGen';
 const RECIPE_STORE_NAME = 'recipes';
+const LABELS_STORE_NAME = 'labels';
+const LABELS_KEY = 'accountLabels';
+const MAX_LABELS = 20;
 
 localforage.config({
   name: APP_NAME,
@@ -16,6 +19,11 @@ localforage.config({
 const recipeStore = localforage;
 const historyStore = localforage.createInstance({ storeName: 'history' });
 const registryStore = localforage.createInstance({ storeName: 'registry' });
+const labelStore = localforage.createInstance({ storeName: LABELS_STORE_NAME });
+
+function normalizeOutputType(outputType) {
+  return outputType === 'pin' ? 'pin' : 'password';
+}
 
 function normalizeCounterValue(counter) {
   const raw = String(counter ?? '0').trim();
@@ -57,26 +65,36 @@ function ensureShortId(version = {}) {
   };
 }
 
+function normalizeAccountFields(entry = {}) {
+  if (!entry) return entry;
+  const { accountId, accountLabel, accountHash, account, ...rest } = entry;
+  const trimmedLabel = typeof accountLabel === 'string' ? accountLabel.trim() : '';
+
+  const normalized = { ...rest };
+  if (trimmedLabel) normalized.accountLabel = trimmedLabel;
+  return normalized;
+}
+
 async function ensureRecipeIdentifiers(version = {}) {
   const withShort = ensureShortId(version);
   if (!withShort) return withShort;
 
   const normalizedParameters = PasswordGenerator.normalizeParameters(withShort.parameters);
-  const hasParameterChanges =
-    !withShort.parameters ||
-    withShort.parameters.iterations !== normalizedParameters.iterations ||
-    withShort.parameters.argonMem !== normalizedParameters.argonMem ||
-    withShort.parameters.scryptN !== normalizedParameters.scryptN;
+  const normalizedOutputType = normalizeOutputType(withShort.outputType);
+  const normalizedBase = {
+    ...withShort,
+    outputType: normalizedOutputType,
+    parameters: normalizedParameters
+  };
 
-  const baseEntry = hasParameterChanges
-    ? { ...withShort, parameters: normalizedParameters }
-    : withShort;
+  const baseEntry = normalizedBase;
+  const sanitizedEntry = normalizeAccountFields(baseEntry);
 
-  const id = typeof baseEntry.id === 'string' ? baseEntry.id : '';
-  if (id.length === 64) return baseEntry;
+  const id = typeof sanitizedEntry.id === 'string' ? sanitizedEntry.id : '';
+  if (id.length === 64) return sanitizedEntry;
 
-  if (!baseEntry.site || !baseEntry.algorithm || !baseEntry.length) {
-    return baseEntry;
+  if (!sanitizedEntry.site || !sanitizedEntry.algorithm || !sanitizedEntry.length) {
+    return sanitizedEntry;
   }
 
   try {
@@ -84,6 +102,7 @@ async function ensureRecipeIdentifiers(version = {}) {
       algorithm: baseEntry.algorithm,
       site: baseEntry.site,
       counter: baseEntry.counter ?? '0',
+      outputType: normalizedOutputType,
       length: baseEntry.length,
       policyOn: Boolean(baseEntry.policyOn),
       compatMode: Boolean(baseEntry.compatMode),
@@ -91,7 +110,7 @@ async function ensureRecipeIdentifiers(version = {}) {
     });
     if (digest && digest.length === 64) {
       return {
-        ...baseEntry,
+        ...sanitizedEntry,
         id: digest,
         shortId: digest.slice(0, 8)
       };
@@ -100,7 +119,7 @@ async function ensureRecipeIdentifiers(version = {}) {
     // Ignore digest errors and fall back to existing identifier.
   }
 
-  return baseEntry;
+  return sanitizedEntry;
 }
 
 async function normalizeRegistryEntry(entry) {
@@ -147,7 +166,7 @@ async function normalizeRecipeEntry(entry, key) {
   return normalized;
 }
 
-export const stores = { recipeStore, historyStore, registryStore };
+export const stores = { recipeStore, historyStore, registryStore, labelStore };
 
 export async function getRegistryEntry(site) {
   const entry = await registryStore.getItem(site);
@@ -227,7 +246,32 @@ export async function clearRecipeHistory() {
 }
 
 export async function clearAllData() {
-  await Promise.all([localforage.clear(), historyStore.clear(), registryStore.clear()]);
+  await Promise.all([
+    localforage.clear(),
+    historyStore.clear(),
+    registryStore.clear(),
+    labelStore.clear()
+  ]);
+}
+
+export async function fetchAccountLabels() {
+  const stored = await labelStore.getItem(LABELS_KEY);
+  if (!Array.isArray(stored)) return [];
+  return stored
+    .map(label => (typeof label === 'string' ? label.trim() : ''))
+    .filter(Boolean);
+}
+
+export async function storeAccountLabel(label) {
+  const trimmed = typeof label === 'string' ? label.trim() : '';
+  if (!trimmed) return [];
+
+  const existing = await fetchAccountLabels();
+  const deduped = existing.filter(item => item.toLowerCase() !== trimmed.toLowerCase());
+  const nextLabels = [trimmed, ...deduped].slice(0, MAX_LABELS);
+
+  await labelStore.setItem(LABELS_KEY, nextLabels);
+  return nextLabels;
 }
 
 export async function importRecipes(recipes = []) {
@@ -316,10 +360,12 @@ export async function exportRegistrySnapshot() {
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
         algorithm: version.algorithm,
+        outputType: normalizeOutputType(version.outputType),
         length: version.length,
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
+        accountLabel: version.accountLabel,
         parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version || index + 1
@@ -363,10 +409,12 @@ export async function importRegistrySnapshot(snapshot = {}) {
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
         algorithm: version.algorithm,
+        outputType: normalizeOutputType(version.outputType),
         length: version.length,
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
         compatMode: Boolean(version.compatMode),
+        accountLabel: version.accountLabel,
         parameters: PasswordGenerator.normalizeParameters(version.parameters),
         date: version.date || new Date().toISOString(),
         version: version.version

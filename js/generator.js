@@ -4,10 +4,17 @@ const DEFAULT_LENGTH = 16;
 const MIN_LENGTH = 8;
 const MAX_LENGTH = 50;
 
+const DEFAULT_PIN_LENGTH = 4;
+const MIN_PIN_LENGTH = 3;
+const MAX_PIN_LENGTH = 12;
+
 const DEFAULT_PARAMETERS = Object.freeze({
   iterations: 100000,
   argonMem: 64,
-  scryptN: 16384
+  scryptN: 16384,
+  balloonSpace: 64,
+  balloonTime: 3,
+  balloonDelta: 3
 });
 
 const CHARSETS = {
@@ -20,20 +27,27 @@ const CHARSETS = {
 export class PasswordGenerator {
   constructor({
     algorithm = 'PBKDF2-SHA256',
-    length = 16,
+    outputType = 'password',
+    length = outputType === 'pin' ? DEFAULT_PIN_LENGTH : DEFAULT_LENGTH,
     policyOn = true,
     compatMode = false,
     parameters = {}
   } = {}) {
     this.algorithm = algorithm;
+    this.outputType = outputType === 'pin' ? 'pin' : 'password';
+
+    const minLength = this.outputType === 'pin' ? MIN_PIN_LENGTH : MIN_LENGTH;
+    const maxLength = this.outputType === 'pin' ? MAX_PIN_LENGTH : MAX_LENGTH;
+    const defaultLength = this.outputType === 'pin' ? DEFAULT_PIN_LENGTH : DEFAULT_LENGTH;
+
     // Defensive guard: clamp to supported bounds and fall back to a safe default
     // when callers provide invalid lengths.
     const numericLength = Number(length);
     if (Number.isInteger(numericLength)) {
-      this.length = Math.min(MAX_LENGTH, Math.max(MIN_LENGTH, numericLength));
+      this.length = Math.min(maxLength, Math.max(minLength, numericLength));
     } else {
       // Fall back to a safe default when callers provide invalid lengths.
-      this.length = DEFAULT_LENGTH;
+      this.length = defaultLength;
     }
     this.policyOn = policyOn;
     this.compatMode = compatMode;
@@ -41,35 +55,37 @@ export class PasswordGenerator {
   }
 
   static normalizeSite(site) {
-    const canonicalize = value => {
-      if (value == null) return '';
-      let normalized = String(value).toLowerCase().trim().replace(/^www\./, '');
-
-      // Align bare inputs like "facebook" with their common ".com" hostname so
-      // both generate the same password. Only strip ".com" when it is the sole
-      // suffix (e.g. "example.com"), preserving other subdomains such as
-      // "mail.example.com".
-      const dotMatches = normalized.match(/\./g) || [];
-      if (dotMatches.length === 1 && normalized.endsWith('.com')) {
-        normalized = normalized.slice(0, -4);
-      }
-
-      return normalized;
-    };
-
     const rawSite = site == null ? '' : String(site);
+    const trimmed = rawSite.trim();
+    if (!trimmed) return '';
 
+    const isUrlLike =
+      /:\/\//.test(trimmed) ||
+      /^www\./i.test(trimmed) ||
+      trimmed.includes('.');
+    if (!isUrlLike) return trimmed;
+
+    let hostname = trimmed.toLowerCase();
     try {
-      let input = rawSite.trim();
-      if (!input.includes('://')) input = 'https://' + input;
-      return canonicalize(new URL(input).hostname);
+      let input = hostname;
+      if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(input)) {
+        input = `https://${input}`;
+      }
+      hostname = new URL(input).hostname;
     } catch {
-      return canonicalize(rawSite);
+      // Fall back to raw input when URL parsing fails.
     }
+
+    return hostname.toLowerCase().trim().replace(/^www\./, '').replace(/\.+$/, '');
   }
 
   normalizeSite(site) {
     return PasswordGenerator.normalizeSite(site);
+  }
+
+  static normalizeAccount(account) {
+    if (account == null) return '';
+    return String(account).trim().toLowerCase();
   }
 
   static normalizeCounter(counter) {
@@ -93,14 +109,19 @@ export class PasswordGenerator {
     return raw;
   }
 
-  async generate({ site, secret, counter = '0' }) {
-    if (/[|]/.test(site) || /[|]/.test(secret)) {
+  async generate({ site, account = '', secret, counter = '0', normalizeSite = true }) {
+    if (/[|]/.test(site) || /[|]/.test(secret) || /[|]/.test(account)) {
       throw new Error('Inputs may not contain "|" character');
     }
 
-    const normalizedSite = PasswordGenerator.normalizeSite(site);
+    const normalizedSite = normalizeSite
+      ? PasswordGenerator.normalizeSite(site)
+      : String(site ?? '').trim();
+    const normalizedAccount = PasswordGenerator.normalizeAccount(account);
     const normalizedCounter = PasswordGenerator.normalizeCounter(counter);
-    const combined = `${normalizedSite}|${secret}|${normalizedCounter}`;
+    const combined = normalizedAccount
+      ? `${normalizedSite}|${normalizedAccount}|${secret}|${normalizedCounter}`
+      : `${normalizedSite}|${secret}|${normalizedCounter}`;
 
     let hex;
     switch (this.algorithm) {
@@ -119,12 +140,47 @@ export class PasswordGenerator {
         hex = await CryptoHelper.scrypt(secret, combined, N);
         break;
       }
+      case 'BLAKE2b-512': {
+        hex = await CryptoHelper.blake2b(combined, 64);
+        break;
+      }
+      case 'BLAKE2s-256': {
+        hex = await CryptoHelper.blake2s(combined, 32);
+        break;
+      }
+      case 'HMAC-SHA256': {
+        hex = await CryptoHelper.hmac(secret, combined, 'SHA-256');
+        break;
+      }
+      case 'Balloon-SHA256': {
+        const { balloonSpace, balloonTime, balloonDelta } = this.parameters;
+        hex = await CryptoHelper.balloon(secret, combined, {
+          spaceCost: balloonSpace,
+          timeCost: balloonTime,
+          delta: balloonDelta,
+          hash: 'SHA-256'
+        });
+        break;
+      }
       default:
         hex = await CryptoHelper.digest(combined, this.algorithm);
     }
 
-    const password = this.mapToPassword(hex);
-    return { password, normalizedSite, hex, counter: normalizedCounter };
+    const password = this.outputType === 'pin' ? this.mapToPin(hex) : this.mapToPassword(hex);
+    return { password, normalizedSite, normalizedAccount, hex, counter: normalizedCounter };
+  }
+
+  mapToPin(hex) {
+    const bytes = this.hexToBytes(hex);
+    if (!bytes.length) return '';
+
+    const digits = CHARSETS.digits;
+    let pin = '';
+    for (let i = 0; i < this.length; i++) {
+      pin += digits[bytes[i % bytes.length] % 10];
+    }
+
+    return pin;
   }
 
   mapToPassword(hex) {
@@ -169,30 +225,71 @@ export class PasswordGenerator {
     return output;
   }
 
-  static sanitizeParameter(value, defaultValue) {
+  static sanitizeParameter(value, defaultValue, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
     const parsed = Number.parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) return defaultValue;
-    return parsed;
+    if (!Number.isFinite(parsed)) return defaultValue;
+    const clamped = Math.min(Math.max(parsed, min), max);
+    if (!Number.isFinite(clamped) || clamped <= 0) return defaultValue;
+    return clamped;
   }
 
   static normalizeParameters(parameters = {}) {
     const normalized = {
-      iterations: this.sanitizeParameter(parameters.iterations, DEFAULT_PARAMETERS.iterations),
-      argonMem: this.sanitizeParameter(parameters.argonMem, DEFAULT_PARAMETERS.argonMem),
-      scryptN: this.sanitizeParameter(parameters.scryptN, DEFAULT_PARAMETERS.scryptN)
+      iterations: this.sanitizeParameter(parameters.iterations, DEFAULT_PARAMETERS.iterations, { min: 1000, max: 10000000 }),
+      argonMem: this.sanitizeParameter(parameters.argonMem, DEFAULT_PARAMETERS.argonMem, { min: 8, max: 4096 }),
+      scryptN: this.sanitizeParameter(parameters.scryptN, DEFAULT_PARAMETERS.scryptN, { min: 1024, max: 1048576 }),
+      balloonSpace: this.sanitizeParameter(parameters.balloonSpace, DEFAULT_PARAMETERS.balloonSpace, {
+        min: 4,
+        max: 4096
+      }),
+      balloonTime: this.sanitizeParameter(parameters.balloonTime, DEFAULT_PARAMETERS.balloonTime, {
+        min: 1,
+        max: 24
+      }),
+      balloonDelta: this.sanitizeParameter(parameters.balloonDelta, DEFAULT_PARAMETERS.balloonDelta, {
+        min: 1,
+        max: 8
+      })
     };
     return normalized;
   }
 
-  static buildRecipeSignature({ algorithm, site, counter, length, policyOn, compatMode, parameters = {} }) {
+  static buildRecipeSignature({
+    algorithm,
+    site,
+    account = '',
+    counter,
+    outputType = 'password',
+    length,
+    policyOn,
+    compatMode,
+    parameters = {}
+  }) {
+    const normalizedAccount = this.normalizeAccount(account);
     const normalizedCounter = this.normalizeCounter(counter);
+    const normalizedOutputType = outputType === 'pin' ? 'pin' : 'password';
     const normalizedParameters = this.normalizeParameters(parameters);
     const parameterSignature = [
       `iterations=${normalizedParameters.iterations}`,
       `argonMem=${normalizedParameters.argonMem}`,
-      `scryptN=${normalizedParameters.scryptN}`
+      `scryptN=${normalizedParameters.scryptN}`,
+      `balloonSpace=${normalizedParameters.balloonSpace}`,
+      `balloonTime=${normalizedParameters.balloonTime}`,
+      `balloonDelta=${normalizedParameters.balloonDelta}`
     ].join(';');
-    return `${algorithm}|${site}|${normalizedCounter}|${length}|${policyOn}|${compatMode}|${parameterSignature}`;
+    const signatureParts = [algorithm, site];
+    if (normalizedAccount) {
+      signatureParts.push(normalizedAccount);
+    }
+    signatureParts.push(
+      normalizedCounter,
+      normalizedOutputType,
+      length,
+      policyOn,
+      compatMode,
+      parameterSignature
+    );
+    return signatureParts.join('|');
   }
 
   static async computeRecipeId(details) {

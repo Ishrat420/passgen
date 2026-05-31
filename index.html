@@ -23,9 +23,26 @@
         <p>Fill these once and regenerate on any device.</p>
       </div>
 
+      <div class="field-grid">
+        <div class="field-group">
+          <label class="field-label" for="website">Website or App Name</label>
+          <input id="website" class="field-input" placeholder="e.g. facebook.com">
+          <div id="domainStatus" class="domain-status" role="status" aria-live="polite" hidden>
+            <span class="domain-status__icon" aria-hidden="true"></span>
+            <span class="domain-status__text"></span>
+          </div>
+        </div>
+      </div>
+
       <div class="field-group">
-        <label class="field-label" for="website">Website or App Name</label>
-        <input id="website" class="field-input" placeholder="e.g. facebook.com">
+        <label class="field-label" for="accountLabel">Account label (optional)
+          <span
+            class="info-tip"
+            data-tip="Optional nickname to help distinguish between multiple accounts, it has no impact on the generated password."
+          >?</span>
+        </label>
+        <input id="accountLabel" class="field-input" placeholder="e.g. Personal or Work">
+        <div id="accountLabelPanel" class="suggestion-panel" role="listbox" aria-label="Saved account labels" hidden></div>
       </div>
 
       <div class="field-group">
@@ -39,13 +56,22 @@
       <div class="field-grid">
         <div class="field-group">
           <label class="field-label" for="counter">Password Counter
-            <span class="info-tip" data-tip="Starts with 0, Bump this up if you need a new password for the same site!">?</span>
+            <span class="info-tip" data-tip="Starts with 0. Use it to rotate passwords for the same site without changing your master secret.">?</span>
           </label>
           <input type="number" id="counter" class="field-input" value="0" min="0">
         </div>
         <div class="field-group">
-          <label class="field-label" for="length">Character Length</label>
+          <label class="field-label" for="length" id="lengthLabel">Character Length</label>
           <input type="number" id="length" class="field-input" value="16" min="8" max="50">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="outputType">Output Type</label>
+          <div class="select-wrapper">
+            <select id="outputType" class="field-input">
+              <option value="password" selected>Password</option>
+              <option value="pin">PIN</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -59,10 +85,14 @@
               <option value="PBKDF2-SHA256" selected>PBKDF2-SHA256 (default)</option>
               <option value="Argon2id">Argon2id</option>
               <option value="scrypt">scrypt</option>
+              <option value="Balloon-SHA256">Balloon-SHA256</option>
             </optgroup>
             <optgroup label="Simple">
               <option value="SHA-256">SHA-256</option>
               <option value="SHA-512">SHA-512</option>
+              <option value="BLAKE2b-512">BLAKE2b-512</option>
+              <option value="BLAKE2s-256">BLAKE2s-256</option>
+              <option value="HMAC-SHA256">HMAC-SHA256</option>
             </optgroup>
           </select>
         </div>
@@ -86,7 +116,7 @@
         <div class="setting-row">
           <div class="setting-copy">
             <span class="setting-title">Compatibility Mode</span>
-            <span class="setting-description">For websites that don't allow symbols in passwords.</span>
+            <span class="setting-description">Use this mode for sites that reject certain special characters.</span>
           </div>
           <label class="switch" for="compatToggle">
             <input type="checkbox" id="compatToggle">
@@ -94,6 +124,7 @@
           </label>
         </div>
         <small id="compatHint" class="hint" style="display:none;">Disabled while Character Policy is on</small>
+
       </div>
 
       <div class="action-bar">
@@ -135,6 +166,28 @@
             <label class="field-label" for="scryptN">scrypt N (CPU cost)</label>
             <input type="number" id="scryptN" class="field-input" value="16384" min="1024">
           </div>
+          <div class="field-group">
+            <label class="field-label" for="balloonSpace">Balloon Space Cost</label>
+            <input type="number" id="balloonSpace" class="field-input" value="64" min="4">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="balloonTime">Balloon Time Cost</label>
+            <input type="number" id="balloonTime" class="field-input" value="3" min="1">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="balloonDelta">Balloon Mixing Rounds (Δ)</label>
+            <input type="number" id="balloonDelta" class="field-input" value="3" min="1">
+          </div>
+        </div>
+        <div class="setting-row setting-row--compact advanced-verify-row">
+          <div class="setting-copy">
+            <span class="setting-title">Verify domains</span>
+            <span class="setting-description">Check domain names and normalize verified entries.</span>
+          </div>
+          <label class="switch" for="verifyDomainsToggle">
+            <input type="checkbox" id="verifyDomainsToggle" checked>
+            <span class="slider"></span>
+          </label>
         </div>
         <button id="resetAppBtn" class="danger-btn" type="button">Reset All App Data</button>
         <small class="advanced-hint">
@@ -148,30 +201,121 @@
         <summary>🔐 Saved Recipes</summary>
 
         <div class="history-controls">
+          <details class="history-sync">
+            <summary>Sync &amp; Transfer</summary>
+            <div class="history-sync__body">
+              <div class="history-buttons">
+                <button id="syncBtn" type="button">Sync via QR</button>
+                <button id="exportBtn" type="button">Export JSON</button>
+                <button id="importBtn" type="button">Import JSON</button>
+                <button id="clearHistoryBtn" type="button">Clear Saved Recipe List</button>
+              </div>
+
+              <section
+                id="fileSyncUnavailable"
+                class="file-sync-panel file-sync-panel--collapsed"
+                aria-live="polite"
+                hidden
+              >
+                <h3>Shared file sync not available</h3>
+                <p class="file-sync-panel__message">
+                  This browser doesn't support the File System Access API needed for shared JSON sync.
+                  Use <a href="#syncBtn">QR sync</a> or <a href="#exportBtn">export/import JSON</a> instead to move your recipes between devices.
+                </p>
+              </section>
+
+              <section id="fileSyncPanel" class="file-sync-panel" aria-labelledby="fileSyncHeading">
+                <div class="file-sync-panel__header">
+                  <div>
+                    <h3 id="fileSyncHeading">Shared file sync</h3>
+                    <p class="file-sync-panel__hint">
+                      Keep recipe metadata in a shared JSON file (e.g., USB drive) for offline sync. Your master passphrase never leaves this page.
+                    </p>
+                  </div>
+                  <div class="file-sync-panel__actions">
+                    <button id="fileSyncChooseBtn" type="button">Choose sync file</button>
+                    <button id="fileSyncSyncNowBtn" type="button">Sync now</button>
+                  </div>
+                </div>
+                <div class="file-sync-panel__controls" aria-live="polite">
+                  <div class="file-sync-panel__row">
+                    <div class="file-sync-panel__field">
+                      <label for="fileSyncAutoToggle">Auto-sync</label>
+                      <label class="switch" for="fileSyncAutoToggle">
+                        <input type="checkbox" id="fileSyncAutoToggle" checked>
+                        <span class="slider"></span>
+                      </label>
+                    </div>
+                    <div class="file-sync-panel__field">
+                      <label for="fileSyncInterval">Poll every</label>
+                      <select id="fileSyncInterval" class="field-input field-input--compact">
+                        <option value="1">1 minute</option>
+                        <option value="5" selected>5 minutes</option>
+                        <option value="10">10 minutes</option>
+                        <option value="30">30 minutes</option>
+                      </select>
+                    </div>
+                    <button id="fileSyncPauseBtn" type="button" class="ghost-btn">Pause auto-sync</button>
+                  </div>
+                  <div class="file-sync-panel__status">
+                    <p id="fileSyncFileLabel" class="file-sync-panel__file">No sync file selected.</p>
+                    <p id="fileSyncStatus" class="file-sync-panel__message" role="status" aria-live="polite">
+                      Saved recipes and sync files only store recipe metadata, never your master passphrase.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </details>
+        </div>
+
+        <div class="history-listing">
           <input
             type="text"
             id="searchHistory"
             placeholder="Search by site..."
             class="search-box"
           />
-          <div class="history-buttons">
-            <button id="syncBtn" type="button">Sync via QR</button>
-            <button id="exportBtn" type="button">Export JSON</button>
-            <button id="importBtn" type="button">Import JSON</button>
-            <button id="clearHistoryBtn" type="button">Clear All</button>
-          </div>
-        </div>
 
-        <ul id="historyList" class="history-list"></ul>
+          <ul id="historyList" class="history-list"></ul>
+        </div>
         <small id="storageInfo" class="history-footnote"></small>
       </details>
     </section>
-    <footer id="appVersion">PasswordGen v2.0 — 100% Local, No Cloud</footer>
+    <footer id="appVersion">PasswordGen v1.4.0 — Local Generation, No Password Storage</footer>
   </main>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/argon2-browser/dist/argon2-bundled.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/scrypt-js@3.0.1/scrypt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/blakejs@1.2.1/blakejs.min.js" crossorigin="anonymous"></script>
+  <script>
+    if (!window.blakejs) {
+      document.write(
+        '<script src="https://unpkg.com/blakejs@1.2.1/blakejs.min.js" crossorigin="anonymous"><\\/script>'
+      );
+    }
+  </script>
+  <script>
+    if (!window.blakejs) {
+      document.write(
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/blakejs/1.2.1/blakejs.min.js" crossorigin="anonymous"><\\/script>'
+      );
+    }
+  </script>
+  <script>
+    if (!window.blakejs) {
+      console.warn('BLAKE2 support is still unavailable after trying all CDN mirrors.');
+    }
+  </script>
   <script src="js/vendor/qrcode.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" crossorigin="anonymous"></script>
+  <script>
+    if (!window.jsQR) {
+      document.write(
+        '<script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js" crossorigin="anonymous"><\\/script>'
+      );
+    }
+  </script>
   <div id="syncModal" class="sync-modal hidden" role="dialog" aria-modal="true" aria-labelledby="syncModalTitle">
     <div class="sync-modal__dialog">
       <header class="sync-modal__header">

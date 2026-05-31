@@ -1,4 +1,5 @@
 import { exportRegistrySnapshot, importRegistrySnapshot } from './storage.js';
+import { notifyFileSyncRegistryChange } from './file-sync.js';
 
 const QUICK_PREFIX = 'PGENQUICK-';
 const PAYLOAD_VERSION = 2;
@@ -16,6 +17,8 @@ const quickState = {
 let currentMode = 'send';
 let isPreparingQuickBundle = false;
 let quickScannerDetector = null;
+let quickScannerCanvas = null;
+let quickScannerContext = null;
 let quickScannerStream = null;
 let quickScannerFrameId = 0;
 let isQuickScannerActive = false;
@@ -228,6 +231,7 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
       if (typeof updateStorageInfo === 'function') {
         await updateStorageInfo();
       }
+      await notifyFileSyncRegistryChange();
     } catch (error) {
       updateQuickImportStatus(`❌ Import failed: ${error.message}`, true);
     }
@@ -247,13 +251,18 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
 
     try {
       if (!quickScannerDetector && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-        quickScannerDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        try {
+          quickScannerDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        } catch (error) {
+          quickScannerDetector = new window.BarcodeDetector();
+        }
       }
     } catch (error) {
       quickScannerDetector = null;
     }
 
-    if (!quickScannerDetector) {
+    const hasJsQr = typeof window !== 'undefined' && typeof window.jsQR === 'function';
+    if (!quickScannerDetector && !hasJsQr) {
       updateQuickImportStatus('QR scanning is not supported in this browser. Paste the bundle manually.', true);
       return;
     }
@@ -278,18 +287,38 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
   }
 
   async function scanQuickFrame() {
-    if (!isQuickScannerActive || !quickScannerDetector || !quickScannerVideo) return;
+    if (!isQuickScannerActive || !quickScannerVideo) return;
+    const hasDetector = !!quickScannerDetector;
+    const hasJsQr = typeof window !== 'undefined' && typeof window.jsQR === 'function';
+    if (!hasDetector && !hasJsQr) return;
 
     if (quickScannerVideo.readyState < 2) {
       quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
       return;
     }
 
+    if (!quickScannerCanvas) {
+      quickScannerCanvas = document.createElement('canvas');
+    }
+    const width = quickScannerVideo.videoWidth || 0;
+    const height = quickScannerVideo.videoHeight || 0;
+    if (width === 0 || height === 0) {
+      quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
+      return;
+    }
+    if (quickScannerCanvas.width !== width) quickScannerCanvas.width = width;
+    if (quickScannerCanvas.height !== height) quickScannerCanvas.height = height;
+    if (!quickScannerContext) {
+      quickScannerContext = quickScannerCanvas.getContext('2d');
+    }
+
     try {
-      const barcodes = await quickScannerDetector.detect(quickScannerVideo);
-      const hit = barcodes.find(code => typeof code.rawValue === 'string' && code.rawValue.trim().length > 0);
-      if (hit) {
-        const value = hit.rawValue.trim();
+      if (!quickScannerContext) {
+        throw new Error('Canvas context unavailable.');
+      }
+      quickScannerContext.drawImage(quickScannerVideo, 0, 0, width, height);
+      const value = await detectQuickPayload(width, height);
+      if (value) {
         if (quickInputTextarea) {
           quickInputTextarea.value = value;
         }
@@ -303,6 +332,25 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     }
 
     quickScannerFrameId = requestAnimationFrame(scanQuickFrame);
+  }
+
+  async function detectQuickPayload(width, height) {
+    if (!quickScannerCanvas || !quickScannerContext) return null;
+    if (quickScannerDetector) {
+      const barcodes = await quickScannerDetector.detect(quickScannerCanvas);
+      const hit = barcodes.find(code => typeof code.rawValue === 'string' && code.rawValue.trim().length > 0);
+      if (hit) {
+        return hit.rawValue.trim();
+      }
+    }
+    if (typeof window !== 'undefined' && typeof window.jsQR === 'function') {
+      const imageData = quickScannerContext.getImageData(0, 0, width, height);
+      const code = window.jsQR(imageData.data, width, height);
+      if (code && typeof code.data === 'string' && code.data.trim().length > 0) {
+        return code.data.trim();
+      }
+    }
+    return null;
   }
 
   function closeQuickScanner({ silent = false, restoreFocus = true } = {}) {
@@ -360,7 +408,7 @@ export function initSyncUI({ refreshHistoryList, updateStorageInfo } = {}) {
     typeof navigator !== 'undefined' &&
     !!(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') &&
     typeof window !== 'undefined' &&
-    'BarcodeDetector' in window;
+    ('BarcodeDetector' in window || typeof window.jsQR === 'function');
 
   if (quickScanBtn && !canAttemptScan) {
     quickScanBtn.disabled = true;
@@ -519,7 +567,11 @@ async function renderQrCode(canvas, value) {
     QRCode.toCanvas(
       canvas,
       value,
-      { width: 320, margin: 6, minScale: 5, errorCorrectionLevel: 'Q' },
+      {
+        margin: config.margin,
+        scale: config.scale,
+        errorCorrectionLevel: config.errorCorrectionLevel
+      },
       error => {
         if (error) {
           reject(error);
@@ -543,6 +595,8 @@ function selectQrRenderConfig(value) {
   const levels = ['M', 'Q', 'L'];
   const maxDenseModules = 135;
   const maxCanvasSize = 640;
+  const minScale = 3;
+  const minMargin = 1;
   const configs = [];
   let lastError = null;
 
@@ -569,18 +623,36 @@ function selectQrRenderConfig(value) {
   const selected =
     configs.find(config => config.moduleCount <= maxDenseModules) || configs[configs.length - 1];
 
-  let margin = selected.moduleCount > 120 ? 6 : 5;
-  let preferredScale = 6;
-
+  let margin;
   if (selected.moduleCount > 150) {
-    preferredScale = 4;
-  } else if (selected.moduleCount > 110) {
-    preferredScale = 5;
+    margin = 2;
+  } else if (selected.moduleCount > 120) {
+    margin = 3;
+  } else {
+    margin = 4;
   }
 
-  const totalModules = selected.moduleCount + margin * 2;
-  const maxScale = Math.max(4, Math.floor(maxCanvasSize / totalModules));
-  const scale = Math.max(4, Math.min(preferredScale, maxScale));
+  const preferredScale =
+    selected.moduleCount > 150 ? 3 : selected.moduleCount > 110 ? 4 : 5;
+
+  const maxScaleFor = currentMargin => {
+    const totalModules = selected.moduleCount + currentMargin * 2;
+    if (totalModules <= 0) return 0;
+    return Math.floor(maxCanvasSize / totalModules);
+  };
+
+  while (margin > minMargin && maxScaleFor(margin) < minScale) {
+    margin -= 1;
+  }
+
+  const maxScale = maxScaleFor(margin);
+
+  if (maxScale < 1) {
+    throw new Error('Payload exceeds the maximum QR capacity. Copy the payload instead.');
+  }
+
+  const desiredScale = Math.max(minScale, preferredScale);
+  const scale = Math.max(1, Math.min(maxScale, desiredScale));
 
   return {
     margin,
@@ -594,6 +666,12 @@ function clearCanvas(canvas) {
   const context = canvas.getContext('2d');
   if (context) {
     context.clearRect(0, 0, canvas.width || 220, canvas.height || 220);
+  }
+  canvas.width = 0;
+  canvas.height = 0;
+  if (canvas.style) {
+    canvas.style.width = '';
+    canvas.style.height = '';
   }
   if (canvas.dataset) {
     delete canvas.dataset.qrModules;
@@ -659,7 +737,7 @@ async function copyToClipboard(value, button) {
 
 function encodeText(value) {
   const bytes = textEncoder.encode(value);
-  return base32Encode(bytes);
+  return toBase64(bytes);
 }
 
 function decodeText(value) {
@@ -674,7 +752,13 @@ function decodeText(value) {
     }
   }
 
-  const binary = atob(sanitized);
+  let normalized = sanitized.replace(/-/g, '+').replace(/_/g, '/');
+  const paddingNeeded = normalized.length % 4;
+  if (paddingNeeded > 0) {
+    normalized = normalized.padEnd(normalized.length + (4 - paddingNeeded), '=');
+  }
+
+  const binary = atob(normalized);
   const percentEncoded = Array.from(binary)
     .map(char => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
     .join('');
