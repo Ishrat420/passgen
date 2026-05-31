@@ -259,6 +259,7 @@ export class PasswordGenerator {
     site,
     account = '',
     counter,
+    outputType = 'password',
     length,
     policyOn,
     compatMode,
@@ -266,6 +267,7 @@ export class PasswordGenerator {
   }) {
     const normalizedAccount = this.normalizeAccount(account);
     const normalizedCounter = this.normalizeCounter(counter);
+    const normalizedOutputType = outputType === 'pin' ? 'pin' : 'password';
     const normalizedParameters = this.normalizeParameters(parameters);
     const parameterSignature = [
       `iterations=${normalizedParameters.iterations}`,
@@ -278,6 +280,9 @@ export class PasswordGenerator {
     const signatureParts = [algorithm, site];
     if (normalizedAccount) {
       signatureParts.push(normalizedAccount);
+    }
+    if (normalizedOutputType === 'pin') {
+      signatureParts.push(normalizedOutputType);
     }
     signatureParts.push(
       normalizedCounter,

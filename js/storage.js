@@ -21,6 +21,10 @@ const historyStore = localforage.createInstance({ storeName: 'history' });
 const registryStore = localforage.createInstance({ storeName: 'registry' });
 const labelStore = localforage.createInstance({ storeName: LABELS_STORE_NAME });
 
+function normalizeOutputType(outputType) {
+  return outputType === 'pin' ? 'pin' : 'password';
+}
+
 function normalizeCounterValue(counter) {
   const raw = String(counter ?? '0').trim();
   if (raw === '') return '0';
@@ -76,18 +80,17 @@ async function ensureRecipeIdentifiers(version = {}) {
   if (!withShort) return withShort;
 
   const normalizedParameters = PasswordGenerator.normalizeParameters(withShort.parameters);
-  const hasParameterChanges =
-    !withShort.parameters ||
-    withShort.parameters.iterations !== normalizedParameters.iterations ||
-    withShort.parameters.argonMem !== normalizedParameters.argonMem ||
-    withShort.parameters.scryptN !== normalizedParameters.scryptN ||
-    withShort.parameters.balloonSpace !== normalizedParameters.balloonSpace ||
-    withShort.parameters.balloonTime !== normalizedParameters.balloonTime ||
-    withShort.parameters.balloonDelta !== normalizedParameters.balloonDelta;
+  const normalizedOutputType = normalizeOutputType(withShort.outputType);
+  const normalizedBase = {
+    ...withShort,
+    ...(normalizedOutputType === 'pin' ? { outputType: normalizedOutputType } : {}),
+    parameters: normalizedParameters
+  };
+  if (normalizedOutputType !== 'pin') {
+    delete normalizedBase.outputType;
+  }
 
-  const baseEntry = hasParameterChanges
-    ? { ...withShort, parameters: normalizedParameters }
-    : withShort;
+  const baseEntry = normalizedBase;
   const sanitizedEntry = normalizeAccountFields(baseEntry);
 
   const id = typeof sanitizedEntry.id === 'string' ? sanitizedEntry.id : '';
@@ -102,6 +105,7 @@ async function ensureRecipeIdentifiers(version = {}) {
       algorithm: baseEntry.algorithm,
       site: baseEntry.site,
       counter: baseEntry.counter ?? '0',
+      outputType: normalizedOutputType,
       length: baseEntry.length,
       policyOn: Boolean(baseEntry.policyOn),
       compatMode: Boolean(baseEntry.compatMode),
@@ -359,6 +363,7 @@ export async function exportRegistrySnapshot() {
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
         algorithm: version.algorithm,
+        ...(normalizeOutputType(version.outputType) === 'pin' ? { outputType: 'pin' } : {}),
         length: version.length,
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
@@ -407,6 +412,7 @@ export async function importRegistrySnapshot(snapshot = {}) {
         shortId: version.shortId || (version.id ? version.id.slice(0, 8) : ''),
         site,
         algorithm: version.algorithm,
+        ...(normalizeOutputType(version.outputType) === 'pin' ? { outputType: 'pin' } : {}),
         length: version.length,
         counter: version.counter,
         policyOn: Boolean(version.policyOn),
